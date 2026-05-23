@@ -599,7 +599,7 @@ async function callGemini(prompt) {
           },
           required: ["recommendedAnswer", "explanation", "confidence", "keyConcepts"]
         }
-      })
+      }
     })
   });
   
