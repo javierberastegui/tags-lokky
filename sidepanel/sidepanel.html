@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Study Partner</title>
+  <!-- Google Fonts para tipografía moderna -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <!-- Fondo con degradados flotantes de fondo para efecto glassmorphic -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="app-container">
+    <!-- Cabecera de la aplicación -->
+    <header class="app-header">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 5a7 7 0 00-7 7c0 1.5.5 3 1.5 4.5L12 21l5.5-4.5c1-1.5 1.5-3 1.5-4.5a7 7 0 00-7-7z"/>
+        </svg>
+        <h1 class="brand-title">Canvas Study</h1>
+      </div>
+      <div class="api-status-badge" id="apiStatusBadge">
+        <span class="status-dot red"></span>
+        <span id="apiStatusText">Sin API Key</span>
+      </div>
+    </header>
+
+    <!-- Navegación por pestañas -->
+    <nav class="app-nav">
+      <button class="nav-tab active" id="tabSolveBtn" data-tab="solve">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9.663 17h4.673M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 5a7 7 0 00-7 7c0 1.5.5 3 1.5 4.5L12 21l5.5-4.5c1-1.5 1.5-3 1.5-4.5a7 7 0 00-7-7z"/>
+        </svg>
+        Resolver
+      </button>
+      <button class="nav-tab" id="tabHistoryBtn" data-tab="history">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Historial
+      </button>
+      <button class="nav-tab" id="tabSettingsBtn" data-tab="settings">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+        Ajustes
+      </button>
+    </nav>
+
+    <!-- Contenido de las Pestañas -->
+    <main class="app-content">
+      <!-- PESTAÑA: RESOLVER -->
+      <section class="tab-panel active" id="panelSolve">
+        <!-- Estado Inicial / Vacío -->
+        <div class="empty-state" id="solveEmptyState">
+          <div class="empty-icon-container">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <h3>Listo para resolver</h3>
+          <p>Ve a un cuestionario en Canvas y haz clic en <strong>"Estudiar con Gemini"</strong> junto a cualquier pregunta.</p>
+          <p class="sub-text">O selecciona texto en cualquier página, haz clic derecho y elige <strong>"Analizar con Gemini"</strong>.</p>
+        </div>
+
+        <!-- Estado de Carga -->
+        <div class="loading-state hidden" id="solveLoadingState">
+          <div class="spinner-container">
+            <div class="spinner"></div>
+            <div class="spinner-inner"></div>
+          </div>
+          <h3>Analizando con Gemini</h3>
+          <p id="loadingStatusText">Consultando base de conocimientos...</p>
+        </div>
+
+        <!-- Contenedor del Resultado del Análisis -->
+        <div class="analysis-container hidden" id="solveResultContainer">
+          <!-- Tarjeta de la Pregunta -->
+          <div class="card question-card">
+            <div class="card-header">
+              <span class="card-tag tag-purple">Pregunta Extraída</span>
+            </div>
+            <div class="question-text" id="resultQuestionText">...</div>
+          </div>
+
+          <!-- Opciones de Respuesta (si existen) -->
+          <div class="card options-card hidden" id="resultOptionsCard">
+            <div class="card-header">
+              <span class="card-tag tag-blue">Opciones y Recomendación</span>
+            </div>
+            <div class="options-list" id="resultOptionsList">
+              <!-- Opciones dinámicas -->
+            </div>
+          </div>
+
+          <!-- Tarjeta de la Explicación -->
+          <div class="card explanation-card">
+            <div class="card-header">
+              <span class="card-tag tag-green">Análisis de la IA</span>
+              <div class="confidence-badge">
+                <span>Confianza:</span>
+                <strong id="resultConfidence">95%</strong>
+              </div>
+            </div>
+            
+            <div class="explanation-result">
+              <h4 class="section-title">Respuesta Correcta:</h4>
+              <div class="recommended-answer-text" id="resultRecommendedAnswer">...</div>
+              
+              <h4 class="section-title">Explicación Paso a Paso:</h4>
+              <div class="explanation-markdown" id="resultExplanation">...</div>
+
+              <h4 class="section-title">Conceptos Clave:</h4>
+              <ul class="concepts-list" id="resultConcepts">
+                <!-- Conceptos clave dinámicos -->
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PESTAÑA: HISTORIAL -->
+      <section class="tab-panel hidden" id="panelHistory">
+        <div class="history-controls">
+          <h3>Consultas Recientes</h3>
+          <button class="btn btn-secondary btn-sm" id="clearHistoryBtn">Borrar Todo</button>
+        </div>
+        
+        <div class="history-list" id="historyList">
+          <!-- Elementos del historial dinámicos -->
+        </div>
+
+        <div class="empty-state" id="historyEmptyState">
+          <div class="empty-icon-container">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <h3>Historial vacío</h3>
+          <p>Tus preguntas analizadas aparecerán aquí para que puedas repasarlas en cualquier momento.</p>
+        </div>
+      </section>
+
+      <!-- PESTAÑA: AJUSTES -->
+      <section class="tab-panel hidden" id="panelSettings">
+        <h3>Configuración de Conexión</h3>
+        <p class="settings-desc">Elige y configura tu proveedor de IA favorito para analizar los cuestionarios.</p>
+        
+        <div class="settings-form">
+          <!-- MODO DE CONEXIÓN -->
+          <div class="form-group">
+            <label for="connectionModeSelect">Modo de Conexión</label>
+            <select id="connectionModeSelect">
+              <option value="api" selected>API Directa (Gemini, Claude, OpenAI)</option>
+              <option value="gateway">Gateway de Agentes (Hermes, OpenClaw)</option>
+              <option value="local">Modelo Local (Ollama)</option>
+            </select>
+          </div>
+
+          <!-- SECCIÓN: API DIRECTA -->
+          <div id="sectionApi" class="connection-section">
+            <div class="form-group">
+              <label for="apiProviderSelect">Proveedor de API</label>
+              <select id="apiProviderSelect">
+                <option value="gemini" selected>Google Gemini</option>
+                <option value="openai">OpenAI (ChatGPT)</option>
+                <option value="claude">Anthropic Claude</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="apiKeyInput" id="apiKeyLabel">Gemini API Key</label>
+              <div class="input-wrapper">
+                <input type="password" id="apiKeyInput" placeholder="Clave de API...">
+                <button class="toggle-password" id="togglePasswordBtn" type="button" title="Mostrar/Ocultar clave">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+              <span class="form-help" id="apiKeyHelp">Consigue una gratis en <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</span>
+            </div>
+
+            <div class="form-group">
+              <label for="apiModelInput">Modelo de IA</label>
+              <input type="text" id="apiModelInput" placeholder="e.g. gemini-2.5-flash">
+            </div>
+          </div>
+
+          <!-- SECCIÓN: GATEWAY DE AGENTES -->
+          <div id="sectionGateway" class="connection-section hidden">
+            <div class="form-group">
+              <label for="gatewayProviderSelect">Proveedor del Gateway</label>
+              <select id="gatewayProviderSelect">
+                <option value="hermes" selected>Hermes Agente IA</option>
+                <option value="openclaw">OpenClaw Agente IA</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="gatewayUrlInput">Dirección URL del Gateway</label>
+              <input type="text" id="gatewayUrlInput" placeholder="https://api.hermes-gateway.com/v1">
+            </div>
+
+            <div class="form-group">
+              <label for="gatewayTokenInput">Token de Autorización (Opcional)</label>
+              <div class="input-wrapper">
+                <input type="password" id="gatewayTokenInput" placeholder="Bearer token o Key...">
+                <button class="toggle-password" id="toggleGatewayTokenBtn" type="button" title="Mostrar/Ocultar token">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="gatewayModelInput">Modelo / Agente</label>
+              <input type="text" id="gatewayModelInput" placeholder="e.g. hermes-agent-v1">
+            </div>
+          </div>
+
+          <!-- SECCIÓN: MODELO LOCAL (OLLAMA) -->
+          <div id="sectionLocal" class="connection-section hidden">
+            <div class="form-group">
+              <label for="localUrlInput">URL del Servidor Ollama</label>
+              <input type="text" id="localUrlInput" placeholder="http://localhost:11434" value="http://localhost:11434">
+            </div>
+
+            <div class="form-group">
+              <label for="localModelSelect">Modelos Disponibles (Ollama)</label>
+              <div class="row-layout">
+                <select id="localModelSelect">
+                  <option value="">-- No hay modelos cargados --</option>
+                </select>
+                <button class="btn btn-secondary btn-sm" id="refreshLocalModelsBtn" type="button" style="padding: 0 10px; flex-shrink: 0; height: 38px;">Buscar</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="localModelManualInput">Nombre de Modelo (Manual)</label>
+              <input type="text" id="localModelManualInput" placeholder="e.g. llama3">
+              <span class="form-help">Usa esto si prefieres ingresar el nombre del modelo directamente sin buscar.</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="languageSelect">Idioma de Respuesta</label>
+            <select id="languageSelect">
+              <option value="es" selected>Español</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+
+          <!-- CONFIGURADOR Y DIAGNÓSTICO -->
+          <div class="config-actions">
+            <button class="btn btn-primary" id="saveSettingsBtn" style="flex: 2;">Guardar Ajustes</button>
+            <button class="btn btn-secondary" id="testConnectionBtn" type="button" style="flex: 1;">Probar</button>
+          </div>
+
+          <div class="test-result-indicator hidden" id="testResultIndicator">
+            <span class="indicator-dot"></span>
+            <span class="indicator-text" id="testResultText">No verificado</span>
+          </div>
+
+          <div class="toast hidden" id="settingsToast">
+            Ajustes guardados con éxito.
+          </div>
+
+          <!-- LOG DE ÚLTIMO ERROR -->
+          <div class="error-logger-container hidden" id="errorLoggerContainer">
+            <div class="error-logger-header">
+              <span>Registro del Último Error</span>
+              <button class="btn btn-sm btn-secondary" id="clearErrorLogBtn" type="button" style="padding: 2px 6px; font-size: 9px; line-height: 1;">Limpiar</button>
+            </div>
+            <pre class="error-logger-content" id="errorLogContent">Sin errores en esta sesión.</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

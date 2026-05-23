@@ -1,0 +1,77 @@
+/* Estilos para el botón inyectado en Canvas por la extensión */
+.gemini-solve-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #6366f1, #a855f7) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 20px !important;
+  padding: 6px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2), 0 2px 4px -2px rgba(99, 102, 241, 0.2) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  text-decoration: none !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  line-height: 1.2 !important;
+}
+
+.gemini-solve-btn:hover {
+  background: linear-gradient(135deg, #4f46e5, #9333ea) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 12px -2px rgba(99, 102, 241, 0.3), 0 3px 6px -3px rgba(99, 102, 241, 0.3) !important;
+}
+
+.gemini-solve-btn:active {
+  transform: translateY(1px) !important;
+}
+
+.gemini-solve-btn:disabled {
+  opacity: 0.75 !important;
+  cursor: not-allowed !important;
+}
+
+/* Iconos de Sparkle y de Éxito */
+.gemini-sparkle-icon, 
+.gemini-success-icon {
+  width: 14px !important;
+  height: 14px !important;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+/* Animación de rotación para la carga */
+.gemini-solve-btn.loading .gemini-sparkle-icon {
+  animation: gemini-rotate 1s linear infinite !important;
+}
+
+@keyframes gemini-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Estados de Éxito y Error */
+.gemini-solve-btn.success {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2) !important;
+}
+
+.gemini-solve-btn.error {
+  background: linear-gradient(135deg, #f43f5e, #e11d48) !important;
+  box-shadow: 0 4px 6px -1px rgba(244, 63, 94, 0.2) !important;
+}
+
+/* Ajuste del contenedor header de la pregunta clásica de Canvas para acomodar el botón */
+.question.display_question .header {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+}

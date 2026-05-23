@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Canvas Study Partner",
+  "version": "1.0.0",
+  "description": "Asistente inteligente para estudiar y resolver cuestionarios de Canvas utilizando la API de Gemini.",
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "scripting",
+    "contextMenus",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.instructure.com/*",
+    "https://*.edu/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {},
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.instructure.com/*",
+        "https://*.edu/*"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "css": [
+        "content/content.css"
+      ],
+      "all_frames": true
+    }
+  ]
+}
