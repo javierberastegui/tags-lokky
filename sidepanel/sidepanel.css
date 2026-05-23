@@ -637,6 +637,11 @@ body {
   transition: all 0.2s ease;
 }
 
+.form-group select option {
+  background-color: #121222; /* Fondo oscuro sólido que combina con el tema */
+  color: var(--text-primary); /* Texto claro */
+}
+
 .form-group input:focus, 
 .form-group select:focus {
   border-color: var(--color-primary-light);
