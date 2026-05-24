@@ -44,6 +44,13 @@
         </svg>
         Historial
       </button>
+      <button class="nav-tab" id="tabShortcutsBtn" data-tab="shortcuts">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 7h16M4 12h10M4 17h7"/>
+          <path d="M17 14l3 3-3 3"/>
+        </svg>
+        Atajos
+      </button>
       <button class="nav-tab" id="tabSettingsBtn" data-tab="settings">
         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
@@ -144,6 +151,46 @@
           </div>
           <h3>Historial vacío</h3>
           <p>Tus preguntas analizadas aparecerán aquí para que puedas repasarlas en cualquier momento.</p>
+        </div>
+      </section>
+
+      <!-- PESTAÑA: ATAJOS -->
+      <section class="tab-panel hidden" id="panelShortcuts">
+        <h3>Atajos</h3>
+        <p class="settings-desc">Configura acciones rápidas de la extensión. El primer atajo disponible es el Modo escucha.</p>
+
+        <div class="card shortcut-card">
+          <div class="card-header">
+            <span class="card-tag tag-purple">Modo escucha</span>
+            <span class="shortcut-state-pill" id="listenModeStatePill">Inactivo</span>
+          </div>
+
+          <p class="shortcut-description">
+            Cuando está activo, cualquier texto que subrayes o selecciones se envía automáticamente al panel para analizarlo.
+          </p>
+
+          <div class="shortcut-toggle-row">
+            <div>
+              <strong>Activar modo escucha</strong>
+              <p>También puedes alternarlo desde la página con la tecla configurada.</p>
+            </div>
+            <button class="btn btn-secondary" id="toggleListenModeBtn" type="button">Activar</button>
+          </div>
+
+          <div class="form-group">
+            <label for="listenShortcutInput">Tecla programable</label>
+            <input type="text" id="listenShortcutInput" value="F8" maxlength="12" placeholder="F8">
+            <span class="form-help">Por defecto: F8. Ejemplos válidos: F8, F9, F10. Chrome también permite revisar atajos en `chrome://extensions/shortcuts`.</span>
+          </div>
+
+          <div class="config-actions">
+            <button class="btn btn-primary" id="saveShortcutBtn" style="flex: 2;">Guardar Atajo</button>
+            <button class="btn btn-secondary" id="resetShortcutBtn" type="button" style="flex: 1;">Restablecer</button>
+          </div>
+
+          <div class="toast hidden" id="shortcutsToast">
+            Atajo guardado con éxito.
+          </div>
         </div>
       </section>
 
