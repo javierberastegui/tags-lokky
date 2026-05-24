@@ -1,7 +1,8 @@
-// El icono de la extensión controla el Modo escucha.
-// El sidepanel queda para configuración, historial y explicación detallada.
+// Background/service worker de Tags Lokky.
+// Responsabilidades: estado del Modo escucha, icono, bandeja de resultados y llamadas ligeras a IA.
+
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
-  .catch((error) => console.error("Error al configurar el comportamiento del panel lateral:", error));
+  .catch((error) => console.error("Error al configurar sidePanel:", error));
 
 const DEFAULT_SHORTCUTS = {
   listenModeEnabled: false,
@@ -26,6 +27,8 @@ const DEFAULT_CONFIG = {
   language: "es"
 };
 
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 async function getShortcutsConfig() {
   const saved = await chrome.storage.local.get("shortcuts");
   return { ...DEFAULT_SHORTCUTS, ...(saved.shortcuts || {}) };
@@ -39,16 +42,18 @@ async function saveShortcutsConfig(nextConfig) {
   return shortcuts;
 }
 
+async function getAppConfig() {
+  const saved = await chrome.storage.local.get("config");
+  return { ...DEFAULT_CONFIG, ...(saved.config || {}) };
+}
+
 async function resetListenModeOnBoot() {
   const current = await getShortcutsConfig();
   const shortcuts = { ...current, listenModeEnabled: false };
   await chrome.storage.local.set({ shortcuts });
+  await chrome.storage.local.remove("listenResultInbox");
+  await chrome.storage.session.remove("pendingAnalysis").catch(() => {});
   await updateActionIcon(false);
-}
-
-async function getAppConfig() {
-  const saved = await chrome.storage.local.get("config");
-  return { ...DEFAULT_CONFIG, ...(saved.config || {}) };
 }
 
 function createActionIcon(isListening, size) {
@@ -56,23 +61,7 @@ function createActionIcon(isListening, size) {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, size, size);
 
-  if (isListening) {
-    ctx.fillStyle = "#10b981";
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = "rgba(255,255,255,0.92)";
-    ctx.lineWidth = Math.max(1, size * 0.06);
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size * 0.34, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.fillStyle = "#ef4444";
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size * 0.16, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
+  if (!isListening) {
     ctx.fillStyle = "#4b5563";
     ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = "#f9fafb";
@@ -80,7 +69,24 @@ function createActionIcon(isListening, size) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("C", size / 2, size / 2 + 1);
+    return ctx.getImageData(0, 0, size, size);
   }
+
+  ctx.fillStyle = "#10b981";
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(255,255,255,0.92)";
+  ctx.lineWidth = Math.max(1, size * 0.06);
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size * 0.34, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = "#ef4444";
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size * 0.16, 0, Math.PI * 2);
+  ctx.fill();
 
   return ctx.getImageData(0, 0, size, size);
 }
@@ -105,14 +111,13 @@ async function updateActionIcon(isListening, badgeText = "", titleSuffix = "") {
       }
     });
   } catch (error) {
-    // Si falla el icono dinámico, el badge sigue dando estado visible.
+    console.warn("No se pudo pintar icono dinámico:", error.message);
   }
 
   if (!isListening) {
     await setActionBadge("");
   } else if (cleanBadge) {
-    const color = cleanBadge === "!" || cleanBadge === "ERR" ? "#ef4444" : "#10b981";
-    await setActionBadge(cleanBadge, color);
+    await setActionBadge(cleanBadge, cleanBadge === "!" || cleanBadge === "ERR" ? "#ef4444" : "#10b981");
   } else {
     await setActionBadge("");
   }
@@ -129,55 +134,37 @@ async function updateActionIcon(isListening, badgeText = "", titleSuffix = "") {
 async function ensureContentScriptInActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.id || !tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://")) return;
+    if (!tab?.id || !tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://")) return;
 
     await chrome.scripting.insertCSS({ target: { tabId: tab.id, allFrames: true }, files: ["content/content.css"] }).catch(() => {});
     await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content/content.js"] }).catch(() => {});
   } catch (error) {
-    console.warn("No se pudo asegurar content script en la pestaña activa:", error.message);
+    console.warn("No se pudo asegurar content script:", error.message);
   }
 }
 
-async function setPendingAnalysisFromSelection(selectedText, tab, source) {
-  const cleanText = (selectedText || "").trim();
-  if (!cleanText || !tab) return;
-
-  await chrome.storage.session.set({
-    pendingAnalysis: { text: cleanText, timestamp: Date.now(), type: "free_text", source: source || "selection" }
-  });
-
-  if (tab.windowId !== undefined) await chrome.sidePanel.open({ windowId: tab.windowId });
-
-  try {
-    await chrome.runtime.sendMessage({ type: "ANALYZE_TEXT", text: cleanText, source: source || "selection" });
-  } catch (err) {
-    console.log("El panel lateral aún no está escuchando. Datos guardados en almacenamiento de sesión.");
-  }
-}
-
-async function notifyActiveTabShortcutsChanged(shortcuts) {
+async function notifyShortcutsChanged(shortcuts) {
   await ensureContentScriptInActiveTab();
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab && tab.id) await chrome.tabs.sendMessage(tab.id, { type: "SHORTCUTS_UPDATED", shortcuts });
+    if (tab?.id) await chrome.tabs.sendMessage(tab.id, { type: "SHORTCUTS_UPDATED", shortcuts });
   } catch (error) {
-    // Algunas páginas no aceptan content scripts; no es un error bloqueante.
+    // No bloqueante: algunas páginas no admiten content scripts.
   }
 
   try {
     await chrome.runtime.sendMessage({ type: "SHORTCUTS_UPDATED", shortcuts });
   } catch (error) {
-    // El sidepanel puede no estar abierto.
+    // No bloqueante: el panel puede estar cerrado.
   }
 }
 
 function normalizeQuestionData(payload) {
   const data = payload?.data || payload || {};
-  const text = String(data.text || payload?.text || "").trim();
   return {
     id: data.id || `listen-${Date.now()}`,
-    text,
+    text: String(data.text || payload?.text || "").trim(),
     options: Array.isArray(data.options) ? data.options : [],
     sourceUrl: data.sourceUrl || ""
   };
@@ -215,27 +202,24 @@ function findLetterByOptionText(questionData, rawAnswer) {
   const answerText = normalizeTextForMatch(rawAnswer);
   if (!answerText || !Array.isArray(questionData.options)) return "";
 
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const exactIndex = questionData.options.findIndex((option) => normalizeTextForMatch(option.text) === answerText);
-  if (exactIndex >= 0) return alphabet[exactIndex] || "";
+  if (exactIndex >= 0) return ALPHABET[exactIndex] || "";
 
   const partialIndex = questionData.options.findIndex((option) => {
     const optionText = normalizeTextForMatch(option.text);
     return optionText && (optionText.includes(answerText) || answerText.includes(optionText));
   });
-  if (partialIndex >= 0) return alphabet[partialIndex] || "";
-
-  return "";
+  return partialIndex >= 0 ? ALPHABET[partialIndex] || "" : "";
 }
 
 function buildLetterPrompt(questionData) {
   let prompt = "Responde SOLO con una letra: A, B, C o D. No expliques nada. No uses JSON.\n\n";
   prompt += `Pregunta:\n${questionData.text}\n\n`;
 
-  if (questionData.options && questionData.options.length > 0) {
+  if (questionData.options.length > 0) {
     prompt += "Opciones:\n";
     questionData.options.slice(0, 4).forEach((option, index) => {
-      prompt += `${String.fromCharCode(65 + index)}. ${option.text}\n`;
+      prompt += `${ALPHABET[index]}. ${option.text}\n`;
     });
   }
 
@@ -248,10 +232,12 @@ async function resolveAnswerLetter(questionData) {
   const prompt = buildLetterPrompt(questionData);
   let rawAnswer = "";
 
-  if (config.connectionMode === "api") {
-    if (config.apiProvider === "gemini") rawAnswer = await callGeminiLetter(prompt, config);
-    else if (config.apiProvider === "openai") rawAnswer = await callOpenAILetter(prompt, config.openaiKey, config.openaiModel, "https://api.openai.com/v1");
-    else if (config.apiProvider === "claude") rawAnswer = await callClaudeLetter(prompt, config);
+  if (config.connectionMode === "api" && config.apiProvider === "gemini") {
+    rawAnswer = await callGeminiLetter(prompt, config);
+  } else if (config.connectionMode === "api" && config.apiProvider === "openai") {
+    rawAnswer = await callOpenAILetter(prompt, config.openaiKey, config.openaiModel, "https://api.openai.com/v1");
+  } else if (config.connectionMode === "api" && config.apiProvider === "claude") {
+    rawAnswer = await callClaudeLetter(prompt, config);
   } else if (config.connectionMode === "gateway") {
     rawAnswer = await callOpenAILetter(prompt, config.gatewayToken, config.gatewayModel, config.gatewayUrl);
   } else if (config.connectionMode === "local") {
@@ -272,15 +258,11 @@ async function callGeminiLetter(prompt, config) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 8
-      }
+      generationConfig: { temperature: 0, maxOutputTokens: 8 }
     })
   });
 
   if (!response.ok) throw new Error(`Error en API de Gemini: ${response.status} - ${await response.text()}`);
-
   const data = await response.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
@@ -307,7 +289,6 @@ async function callOpenAILetter(prompt, apiKey, model, baseUrl) {
   });
 
   if (!response.ok) throw new Error(`Error en llamada OpenAI/Gateway: HTTP ${response.status} - ${await response.text()}`);
-
   const data = await response.json();
   return data.choices?.[0]?.message?.content || "";
 }
@@ -333,7 +314,6 @@ async function callClaudeLetter(prompt, config) {
   });
 
   if (!response.ok) throw new Error(`Error en llamada Claude: HTTP ${response.status} - ${await response.text()}`);
-
   const data = await response.json();
   return data.content?.[0]?.text || "";
 }
@@ -355,29 +335,50 @@ async function callOllamaLetter(prompt, localUrl, model) {
   });
 
   if (!response.ok) throw new Error(`Error en Ollama local: HTTP ${response.status} - ${await response.text()}`);
-
   const data = await response.json();
   return data.message?.content || "";
 }
 
-async function saveListenResultToHistory(questionData, answerLetter) {
+function buildListenResultPayload(questionData, answerLetter) {
+  return {
+    type: "listen_quick_result",
+    event: {
+      type: "listen_result_ready",
+      source: "background",
+      timestamp: Date.now(),
+      answerLetter
+    },
+    questionData,
+    result: {
+      answerLetter,
+      recommendedAnswer: answerLetter ? `Opción ${answerLetter}` : "Respuesta rápida no disponible",
+      explanation: "Resultado rápido generado desde Modo escucha. El panel lo recibe desde la bandeja interna listenResultInbox.",
+      confidence: "rápida",
+      keyConcepts: [],
+      recommendedOptionIndex: Math.max(0, "ABCD".indexOf(answerLetter))
+    },
+    timestamp: Date.now(),
+    source: "listen_mode"
+  };
+}
+
+async function publishListenResult(payload) {
+  await chrome.storage.local.set({ listenResultInbox: payload });
+  await chrome.storage.session.set({ pendingAnalysis: payload }).catch(() => {});
+
+  try {
+    await chrome.runtime.sendMessage({ type: "LISTEN_RESULT_READY", payload });
+  } catch (error) {
+    // El panel puede estar cerrado; listenResultInbox queda como fuente de verdad.
+  }
+}
+
+async function saveListenResultToHistory(questionData, result) {
   try {
     const historyObj = await chrome.storage.local.get("solveHistory");
     let history = historyObj.solveHistory || [];
     history = history.filter((item) => item.question?.text !== questionData.text);
-    history.unshift({
-      id: questionData.id,
-      timestamp: Date.now(),
-      question: questionData,
-      analysis: {
-        answerLetter,
-        recommendedAnswer: answerLetter,
-        explanation: "Respuesta rápida generada desde Modo escucha. Abre el panel para usar el flujo con explicación completa.",
-        confidence: null,
-        keyConcepts: [],
-        recommendedOptionIndex: Math.max(0, "ABCD".indexOf(answerLetter))
-      }
-    });
+    history.unshift({ id: questionData.id, timestamp: Date.now(), question: questionData, analysis: result });
     if (history.length > 30) history = history.slice(0, 30);
     await chrome.storage.local.set({ solveHistory: history });
   } catch (error) {
@@ -391,20 +392,13 @@ async function handleListenSelection(message) {
   try {
     const questionData = normalizeQuestionData(message);
     const answerLetter = await resolveAnswerLetter(questionData);
+    const payload = buildListenResultPayload(questionData, answerLetter);
 
-    await saveListenResultToHistory(questionData, answerLetter);
-    await chrome.storage.session.set({
-      pendingAnalysis: {
-        type: "listen_quick_result",
-        questionData,
-        result: { answerLetter, recommendedAnswer: answerLetter },
-        timestamp: Date.now(),
-        source: "listen_mode"
-      }
-    });
-
+    await saveListenResultToHistory(questionData, payload.result);
+    await publishListenResult(payload);
     await updateActionIcon(true, answerLetter);
-    return { success: true, questionData, iconAnswer: answerLetter };
+
+    return { success: true, questionData, iconAnswer: answerLetter, payload };
   } catch (error) {
     const safeError = `[${new Date().toLocaleTimeString()}] Error en Modo escucha: ${error.message}`;
     await chrome.storage.local.set({ lastError: safeError });
@@ -418,8 +412,25 @@ async function toggleListenMode() {
   const nextEnabled = !current.listenModeEnabled;
   const shortcuts = await saveShortcutsConfig({ listenModeEnabled: nextEnabled });
   await updateActionIcon(nextEnabled);
-  await notifyActiveTabShortcutsChanged(shortcuts);
+  await notifyShortcutsChanged(shortcuts);
   return shortcuts;
+}
+
+async function setPendingAnalysisFromSelection(selectedText, tab, source) {
+  const cleanText = (selectedText || "").trim();
+  if (!cleanText || !tab) return;
+
+  await chrome.storage.session.set({
+    pendingAnalysis: { text: cleanText, timestamp: Date.now(), type: "free_text", source: source || "selection" }
+  });
+
+  if (tab.windowId !== undefined) await chrome.sidePanel.open({ windowId: tab.windowId });
+
+  try {
+    await chrome.runtime.sendMessage({ type: "ANALYZE_TEXT", text: cleanText, source: source || "selection" });
+  } catch (error) {
+    // El panel puede estar cerrado.
+  }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -434,25 +445,22 @@ chrome.runtime.onStartup.addListener(() => {
   resetListenModeOnBoot().catch((error) => console.error("Error al apagar Modo escucha en startup:", error));
 });
 
-chrome.action.onClicked.addListener(async () => {
-  await toggleListenMode();
+chrome.action.onClicked.addListener(() => {
+  toggleListenMode().catch((error) => console.error("Error al alternar Modo escucha:", error));
 });
 
-chrome.commands.onCommand.addListener(async (command) => {
+chrome.commands.onCommand.addListener((command) => {
   if (command !== "toggle-listen-mode") return;
-  await toggleListenMode();
+  toggleListenMode().catch((error) => console.error("Error en atajo nativo:", error));
 });
 
-resetListenModeOnBoot()
-  .catch((error) => console.error("Error al inicializar Modo escucha apagado:", error));
+getShortcutsConfig()
+  .then((shortcuts) => updateActionIcon(shortcuts.listenModeEnabled))
+  .catch((error) => console.error("Error al restaurar icono:", error));
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "solve-selection" && tab) {
-    try {
-      await setPendingAnalysisFromSelection(info.selectionText, tab, "context_menu");
-    } catch (error) {
-      console.error("Error al manejar la selección del menú contextual:", error);
-    }
+    await setPendingAnalysisFromSelection(info.selectionText, tab, "context_menu");
     return;
   }
 
@@ -467,7 +475,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "GET_SHORTCUTS") return sendResponse({ success: true, shortcuts: await getShortcutsConfig() });
     if (message.type === "SAVE_SHORTCUTS") {
       const shortcuts = await saveShortcutsConfig(message.shortcuts || {});
-      await notifyActiveTabShortcutsChanged(shortcuts);
+      await notifyShortcutsChanged(shortcuts);
       return sendResponse({ success: true, shortcuts });
     }
     if (message.type === "TOGGLE_LISTEN_MODE") return sendResponse({ success: true, shortcuts: await toggleListenMode() });
