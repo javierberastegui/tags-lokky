@@ -19,7 +19,7 @@ Solo ayuda a localizar continuidad.
 ## Frontend / superficies
 - `doc/logs/relevos/frontend/content_script.md`
 - `doc/logs/relevos/frontend/popup.md`
-- `doc/logs/relevos/frontend/options.md`
+- `doc/logs/relevos/frontend/conexiones.md`
 
 ## Siguiente entrada recomendada
 Para continuar el proyecto desde cero técnico, leer:
@@ -28,3 +28,4 @@ Para continuar el proyecto desde cero técnico, leer:
 3. `doc/logs/relevos/compartidos/manifest_permisos.md`
 4. `doc/logs/relevos/frontend/content_script.md`
 5. `doc/logs/relevos/backend_modulos/ai_provider.md`
+6. `doc/logs/relevos/frontend/conexiones.md`
