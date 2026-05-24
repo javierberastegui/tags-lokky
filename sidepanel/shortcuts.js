@@ -14,6 +14,10 @@ function normalizeShortcutKey(value) {
   return String(value || "F8").trim().toUpperCase();
 }
 
+function isShortcutInputTarget(target) {
+  return target && target.id === "listenShortcutInput";
+}
+
 function setupShortcutsPanel() {
   const toggleBtn = document.getElementById("toggleListenModeBtn");
   const saveBtn = document.getElementById("saveShortcutBtn");
@@ -22,11 +26,7 @@ function setupShortcutsPanel() {
 
   if (toggleBtn) {
     toggleBtn.addEventListener("click", async () => {
-      const next = {
-        ...shortcutsState,
-        listenModeEnabled: !shortcutsState.listenModeEnabled
-      };
-      await saveShortcutsPanelState(next);
+      await toggleListenModeFromPanel();
     });
   }
 
@@ -60,6 +60,19 @@ function setupShortcutsPanel() {
     });
   }
 
+  document.addEventListener("keydown", async (event) => {
+    if (isShortcutInputTarget(event.target)) return;
+
+    const configuredShortcut = normalizeShortcutKey(shortcutsState.listenModeShortcut);
+    const pressedKey = normalizeShortcutKey(event.key);
+
+    if (pressedKey === configuredShortcut) {
+      event.preventDefault();
+      event.stopPropagation();
+      await toggleListenModeFromPanel();
+    }
+  }, true);
+
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "SHORTCUTS_UPDATED" && message.shortcuts) {
       shortcutsState = { ...DEFAULT_SHORTCUTS, ...message.shortcuts };
@@ -79,6 +92,18 @@ async function loadShortcutsPanelState() {
   }
 
   renderShortcutsPanelState();
+}
+
+async function toggleListenModeFromPanel() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "TOGGLE_LISTEN_MODE" });
+    if (response && response.success && response.shortcuts) {
+      shortcutsState = { ...DEFAULT_SHORTCUTS, ...response.shortcuts };
+      renderShortcutsPanelState();
+    }
+  } catch (error) {
+    console.error("Error al alternar Modo escucha:", error);
+  }
 }
 
 async function saveShortcutsPanelState(nextState) {
