@@ -5,12 +5,15 @@ const DEFAULT_SHORTCUTS = {
 
 let shortcutsState = { ...DEFAULT_SHORTCUTS };
 let lastConsumedListenResultKey = "";
+let lastDiagnosticSnapshot = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   setupShortcutsPanel();
+  setupDiagnosticPanel();
   await loadShortcutsPanelState();
   setupListenResultInboxBridge();
   setTimeout(checkListenResultInbox, 250);
+  setTimeout(refreshDiagnosticPanel, 450);
 });
 
 function normalizeShortcutKey(value) {
@@ -30,6 +33,7 @@ function setupShortcutsPanel() {
   if (toggleBtn) {
     toggleBtn.addEventListener("click", async () => {
       await toggleListenModeFromPanel();
+      await refreshDiagnosticPanel();
     });
   }
 
@@ -41,6 +45,7 @@ function setupShortcutsPanel() {
         listenModeShortcut: nextShortcut
       });
       showShortcutsToast();
+      await refreshDiagnosticPanel();
     });
   }
 
@@ -48,6 +53,7 @@ function setupShortcutsPanel() {
     resetBtn.addEventListener("click", async () => {
       await saveShortcutsPanelState({ ...DEFAULT_SHORTCUTS });
       showShortcutsToast("Atajo restablecido a F8.");
+      await refreshDiagnosticPanel();
     });
   }
 
@@ -73,6 +79,7 @@ function setupShortcutsPanel() {
       event.preventDefault();
       event.stopPropagation();
       await toggleListenModeFromPanel();
+      await refreshDiagnosticPanel();
     }
   }, true);
 
@@ -80,13 +87,33 @@ function setupShortcutsPanel() {
     if (message.type === "SHORTCUTS_UPDATED" && message.shortcuts) {
       shortcutsState = { ...DEFAULT_SHORTCUTS, ...message.shortcuts };
       renderShortcutsPanelState();
+      refreshDiagnosticPanel();
       return;
     }
 
     if (message.type === "LISTEN_RESULT_READY" && message.payload) {
       consumeListenResult(message.payload);
+      refreshDiagnosticPanel();
     }
   });
+}
+
+function setupDiagnosticPanel() {
+  const refreshBtn = document.getElementById("refreshDiagnosticBtn");
+  const copyBtn = document.getElementById("copyDiagnosticBtn");
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", async () => {
+      await refreshDiagnosticPanel();
+      showDiagnosticToast("Diagnóstico actualizado.");
+    });
+  }
+
+  if (copyBtn) {
+    copyBtn.addEventListener("click", async () => {
+      await copyDiagnosticToClipboard();
+    });
+  }
 }
 
 async function loadShortcutsPanelState() {
@@ -169,14 +196,33 @@ function showShortcutsToast(message) {
   setTimeout(() => toast.classList.add("hidden"), 3000);
 }
 
+function showDiagnosticToast(message) {
+  const toast = document.getElementById("diagnosticToast");
+  if (!toast) return;
+
+  toast.textContent = message || "Diagnóstico copiado.";
+  toast.classList.remove("hidden");
+  setTimeout(() => toast.classList.add("hidden"), 3000);
+}
+
 function setupListenResultInboxBridge() {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local" && changes.listenResultInbox?.newValue) {
       consumeListenResult(changes.listenResultInbox.newValue);
+      refreshDiagnosticPanel();
+    }
+
+    if (areaName === "local" && (changes.lastError || changes.solveHistory || changes.shortcuts)) {
+      refreshDiagnosticPanel();
+    }
+
+    if (areaName === "session" && changes.pendingAnalysis) {
+      refreshDiagnosticPanel();
     }
   });
 
   setInterval(checkListenResultInbox, 1200);
+  setInterval(refreshDiagnosticPanel, 2500);
 }
 
 async function checkListenResultInbox() {
@@ -314,6 +360,139 @@ function renderListenAnswer(questionData, result) {
   if (targetIndex >= 0) {
     const targetOption = document.getElementById(`listen-opt-item-${targetIndex}`) || document.getElementById(`opt-item-${targetIndex}`);
     if (targetOption) targetOption.classList.add("recommended");
+  }
+}
+
+async function refreshDiagnosticPanel() {
+  const outputEl = document.getElementById("listenDiagnosticOutput");
+  const statusPill = document.getElementById("diagnosticStatusPill");
+  if (!outputEl) return;
+
+  try {
+    lastDiagnosticSnapshot = await buildDiagnosticSnapshot();
+    outputEl.textContent = JSON.stringify(lastDiagnosticSnapshot, null, 2);
+
+    if (statusPill) {
+      const hasError = Boolean(lastDiagnosticSnapshot.lastError);
+      const hasInbox = Boolean(lastDiagnosticSnapshot.listenResultInbox);
+      const hasHistory = Boolean(lastDiagnosticSnapshot.lastHistoryItem);
+      statusPill.textContent = hasError ? "Error" : hasInbox || hasHistory ? "Con datos" : "Sin datos";
+      statusPill.classList.toggle("active", hasInbox || hasHistory);
+      statusPill.classList.toggle("error", hasError);
+    }
+  } catch (error) {
+    outputEl.textContent = JSON.stringify({ diagnosticError: error.message }, null, 2);
+    if (statusPill) {
+      statusPill.textContent = "Error";
+      statusPill.classList.add("error");
+    }
+  }
+}
+
+async function buildDiagnosticSnapshot() {
+  const [localData, sessionData] = await Promise.all([
+    chrome.storage.local.get(["shortcuts", "listenResultInbox", "lastError", "solveHistory", "config"]),
+    chrome.storage.session.get(["pendingAnalysis"])
+  ]);
+
+  const config = sanitizeConfig(localData.config || {});
+  const lastHistoryItem = Array.isArray(localData.solveHistory) && localData.solveHistory.length
+    ? summarizeHistoryItem(localData.solveHistory[0])
+    : null;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    shortcuts: { ...DEFAULT_SHORTCUTS, ...(localData.shortcuts || shortcutsState || {}) },
+    config,
+    lastError: localData.lastError || null,
+    listenResultInbox: summarizeListenPayload(localData.listenResultInbox || null),
+    pendingAnalysis: summarizeListenPayload(sessionData.pendingAnalysis || null),
+    lastHistoryItem,
+    panelState: {
+      lastConsumedListenResultKey,
+      activeTab: document.querySelector(".nav-tab.active")?.dataset?.tab || null,
+      solveResultVisible: !document.getElementById("solveResultContainer")?.classList.contains("hidden")
+    }
+  };
+}
+
+function sanitizeConfig(config) {
+  const safe = { ...config };
+  const secretKeys = ["geminiKey", "openaiKey", "claudeKey", "gatewayToken"];
+
+  secretKeys.forEach((key) => {
+    if (safe[key]) {
+      safe[key] = `[REDACTED:${String(safe[key]).length} chars]`;
+    } else {
+      safe[key] = "";
+    }
+  });
+
+  return safe;
+}
+
+function summarizeListenPayload(payload) {
+  if (!payload) return null;
+
+  const questionData = payload.questionData || {};
+  const result = payload.result || payload.analysis || {};
+
+  return {
+    type: payload.type || null,
+    source: payload.source || null,
+    timestamp: payload.timestamp || null,
+    event: payload.event || null,
+    question: {
+      id: questionData.id || null,
+      text: truncateDiagnosticText(stripDetectedOptionsBlock(questionData.text || payload.text || ""), 600),
+      optionsCount: Array.isArray(questionData.options) ? questionData.options.length : 0,
+      options: Array.isArray(questionData.options)
+        ? questionData.options.slice(0, 6).map((option, index) => ({
+            letter: "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[index] || String(index + 1),
+            text: truncateDiagnosticText(option.text || "", 220)
+          }))
+        : []
+    },
+    result: {
+      answerLetter: result.answerLetter || null,
+      recommendedAnswer: result.recommendedAnswer || null,
+      recommendedOptionIndex: Number.isInteger(result.recommendedOptionIndex) ? result.recommendedOptionIndex : null,
+      confidence: result.confidence ?? null,
+      explanation: truncateDiagnosticText(result.explanation || "", 350)
+    }
+  };
+}
+
+function summarizeHistoryItem(item) {
+  if (!item) return null;
+  return summarizeListenPayload({
+    type: "history_item",
+    timestamp: item.timestamp,
+    questionData: item.question,
+    result: item.analysis,
+    source: "solveHistory[0]"
+  });
+}
+
+function truncateDiagnosticText(value, maxLength) {
+  const text = String(value || "");
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+}
+
+async function copyDiagnosticToClipboard() {
+  if (!lastDiagnosticSnapshot) {
+    await refreshDiagnosticPanel();
+  }
+
+  const text = JSON.stringify(lastDiagnosticSnapshot || {}, null, 2);
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showDiagnosticToast("Diagnóstico copiado.");
+  } catch (error) {
+    const outputEl = document.getElementById("listenDiagnosticOutput");
+    if (outputEl) outputEl.textContent = text;
+    showDiagnosticToast("No se pudo copiar; selecciona el texto manualmente.");
   }
 }
 
