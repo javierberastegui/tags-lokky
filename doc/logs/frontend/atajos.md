@@ -5,6 +5,24 @@ Registrar decisiones sobre la pestaña Atajos, teclas programables y acciones r�
 
 ## Entradas
 
+### 2026-05-24 — Reparación de llegada de Modo escucha al panel
+- Contexto: el usuario reporta que las preguntas/respuestas del Modo escucha no llegan al panel.
+- Causa detectada: `sidepanel.js` consume y elimina `pendingAnalysis` al abrir el panel, pero solo entiende el flujo antiguo `free_text`. Eso hacía que los resultados `listen_quick_result` pudieran descartarse antes de ser pintados.
+- Objetivo: separar la bandeja del Modo escucha de `pendingAnalysis` para que el panel no pierda resultados.
+- Archivos tocados: `background.js`, `sidepanel/shortcuts.js`, `doc/logs/frontend/atajos.md`.
+- Decisiones tomadas:
+  - `background.js` publica cada resultado rápido en `chrome.storage.local.listenResultInbox`.
+  - También mantiene `pendingAnalysis` como compatibilidad, pero ya no es la fuente principal para Modo escucha.
+  - `sidepanel/shortcuts.js` lee `listenResultInbox` al abrir el panel.
+  - `sidepanel/shortcuts.js` escucha cambios en `chrome.storage.local` para pintar resultados si el panel ya está abierto.
+  - El evento estructurado interno queda representado como `listen_result_ready` dentro del payload.
+- Mensajería revisada: `LISTEN_SELECTION`, `LISTEN_RESULT_READY`, `TOGGLE_LISTEN_MODE`, `SHORTCUTS_UPDATED`.
+- Datos tratados: pregunta seleccionada, opciones detectadas, letra recomendada y resultado rápido normalizado.
+- Permisos afectados: sin permisos nuevos.
+- Validaciones ejecutadas: revisión de flujo y commits aplicados; pendiente validación manual real en Chrome.
+- Incidencias detectadas: riesgo de duplicados mitigado con `lastConsumedListenResultKey`.
+- Siguiente paso: recargar extensión, activar Modo escucha, seleccionar pregunta, comprobar badge del icono y abrir panel para confirmar que se pinta la última pregunta/respuesta.
+
 ### 2026-05-24 — Modo escucha sin cambio de foco e icono activo
 - Contexto: el usuario indica que el Modo escucha no capturaba bien el texto y además el panel lateral interrumpía el flujo.
 - Objetivo: procesar la selección desde la página activa sin abrir automáticamente el sidepanel.
@@ -12,15 +30,15 @@ Registrar decisiones sobre la pestaña Atajos, teclas programables y acciones r�
 - Decisiones tomadas:
   - El procesamiento de `LISTEN_SELECTION` pasa por `background.js`.
   - El sidepanel deja de abrirse automáticamente en Modo escucha.
-  - `content/content.js` muestra una burbuja visual sobre la página con el resultado resumido.
   - El icono de extensión cambia dinámicamente: gris inactivo y verde con punto central cuando Modo escucha está activo.
+  - El resultado rápido debe mostrarse como badge del icono; no como burbuja sobre la página.
   - El detalle completo queda disponible mediante el panel/historial.
 - Mensajería revisada: `GET_SHORTCUTS`, `SAVE_SHORTCUTS`, `TOGGLE_LISTEN_MODE`, `LISTEN_SELECTION`, `SHORTCUTS_UPDATED`.
 - Datos tratados: texto seleccionado por el usuario y, si existen, opciones cercanas detectadas en la página activa.
 - Permisos afectados: sin permisos nuevos en esta etapa.
 - Validaciones ejecutadas: revisión de flujo y rutas; pendiente prueba manual real en Chrome.
 - Incidencias detectadas: la versión anterior fallaba por `commands.default: F8`; ya se retiró y F8 queda como tecla interna del content script.
-- Siguiente paso: recargar extensión, activar Modo escucha, confirmar icono verde, seleccionar texto y verificar que aparece la burbuja sin abrir el panel.
+- Siguiente paso: recargar extensión, activar Modo escucha, confirmar icono verde, seleccionar texto y verificar badge del icono.
 
 ### 2026-05-24 — Alta de Atajos y Modo escucha
 - Contexto: el usuario pide un apartado de Atajos y el primer atajo llamado Modo escucha.
