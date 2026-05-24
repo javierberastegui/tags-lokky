@@ -4,10 +4,13 @@ const DEFAULT_SHORTCUTS = {
 };
 
 let shortcutsState = { ...DEFAULT_SHORTCUTS };
+let lastConsumedListenResultKey = "";
 
 document.addEventListener("DOMContentLoaded", async () => {
   setupShortcutsPanel();
   await loadShortcutsPanelState();
+  setupPendingListenResultBridge();
+  setTimeout(checkPendingListenResult, 350);
 });
 
 function normalizeShortcutKey(value) {
@@ -164,4 +167,166 @@ function showShortcutsToast(message) {
 
   toast.classList.remove("hidden");
   setTimeout(() => toast.classList.add("hidden"), 3000);
+}
+
+function setupPendingListenResultBridge() {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "session" && changes.pendingAnalysis?.newValue) {
+      consumePendingListenResult(changes.pendingAnalysis.newValue);
+    }
+  });
+
+  setInterval(checkPendingListenResult, 1200);
+}
+
+async function checkPendingListenResult() {
+  try {
+    const session = await chrome.storage.session.get("pendingAnalysis");
+    if (session.pendingAnalysis) {
+      await consumePendingListenResult(session.pendingAnalysis);
+    }
+  } catch (error) {
+    console.error("Error al leer resultado pendiente de Modo escucha:", error);
+  }
+}
+
+async function consumePendingListenResult(pendingAnalysis) {
+  if (!pendingAnalysis) return;
+
+  const validTypes = new Set(["listen_quick_result", "analysis_result"]);
+  if (!validTypes.has(pendingAnalysis.type)) return;
+
+  const questionData = normalizePendingQuestion(pendingAnalysis.questionData);
+  const result = normalizePendingResult(pendingAnalysis.result);
+  const key = `${pendingAnalysis.timestamp || ""}-${questionData.id || ""}-${result.answerLetter || result.recommendedAnswer || ""}`;
+
+  if (key && key === lastConsumedListenResultKey) return;
+  lastConsumedListenResultKey = key;
+
+  renderListenResultInPanel(questionData, result);
+
+  try {
+    await chrome.storage.session.remove("pendingAnalysis");
+  } catch (error) {
+    console.warn("No se pudo limpiar pendingAnalysis:", error.message);
+  }
+}
+
+function normalizePendingQuestion(questionData) {
+  const safeQuestion = questionData || {};
+  return {
+    id: safeQuestion.id || `listen-panel-${Date.now()}`,
+    text: stripDetectedOptionsBlock(safeQuestion.text || "Pregunta sin texto."),
+    options: Array.isArray(safeQuestion.options) ? safeQuestion.options : [],
+    sourceUrl: safeQuestion.sourceUrl || ""
+  };
+}
+
+function normalizePendingResult(result) {
+  const safeResult = result || {};
+  const answerLetter = cleanPanelLetter(safeResult.answerLetter || safeResult.recommendedAnswer || safeResult.iconAnswer);
+  const optionIndex = answerLetter ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf(answerLetter) : -1;
+
+  return {
+    answerLetter,
+    recommendedAnswer: answerLetter ? `Opción ${answerLetter}` : (safeResult.recommendedAnswer || "Respuesta rápida recibida"),
+    explanation: safeResult.explanation || "Resultado recibido desde Modo escucha. Para una explicación más completa, vuelve a analizar la pregunta desde el panel.",
+    confidence: safeResult.confidence ?? "rápida",
+    keyConcepts: Array.isArray(safeResult.keyConcepts) ? safeResult.keyConcepts : [],
+    recommendedOptionIndex: Number.isInteger(safeResult.recommendedOptionIndex) ? safeResult.recommendedOptionIndex : optionIndex
+  };
+}
+
+function cleanPanelLetter(value) {
+  const match = String(value || "").trim().match(/^[A-D]$/i);
+  return match ? match[0].toUpperCase() : "";
+}
+
+function stripDetectedOptionsBlock(text) {
+  return String(text || "").split("\n\nOpciones detectadas:")[0].trim();
+}
+
+function renderListenResultInPanel(questionData, result) {
+  switchSolveTabForListenResult();
+  renderListenQuestion(questionData);
+  renderListenAnswer(questionData, result);
+}
+
+function switchSolveTabForListenResult() {
+  document.querySelectorAll(".nav-tab").forEach((tab) => tab.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.add("hidden"));
+
+  const solveTab = document.querySelector('.nav-tab[data-tab="solve"]');
+  const solvePanel = document.getElementById("panelSolve");
+
+  if (solveTab) solveTab.classList.add("active");
+  if (solvePanel) solvePanel.classList.remove("hidden");
+}
+
+function renderListenQuestion(questionData) {
+  document.getElementById("solveEmptyState")?.classList.add("hidden");
+  document.getElementById("solveLoadingState")?.classList.add("hidden");
+  document.getElementById("solveResultContainer")?.classList.remove("hidden");
+
+  const questionEl = document.getElementById("resultQuestionText");
+  if (questionEl) questionEl.textContent = questionData.text;
+
+  const optionsCard = document.getElementById("resultOptionsCard");
+  const optionsList = document.getElementById("resultOptionsList");
+  if (!optionsCard || !optionsList) return;
+
+  optionsList.innerHTML = "";
+
+  if (!questionData.options.length) {
+    optionsCard.classList.add("hidden");
+    return;
+  }
+
+  optionsCard.classList.remove("hidden");
+  questionData.options.forEach((option, index) => {
+    const letter = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[index] || String(index + 1);
+    const optionEl = document.createElement("div");
+    optionEl.className = "option-item";
+    optionEl.id = `listen-opt-item-${index}`;
+    optionEl.innerHTML = `
+      <div class="option-badge">${letter}</div>
+      <div class="option-text">${escapePanelHtml(option.text || "")}</div>
+    `;
+    optionsList.appendChild(optionEl);
+  });
+}
+
+function renderListenAnswer(questionData, result) {
+  const recommendedAnswerEl = document.getElementById("resultRecommendedAnswer");
+  const confidenceEl = document.getElementById("resultConfidence");
+  const explanationEl = document.getElementById("resultExplanation");
+  const conceptsEl = document.getElementById("resultConcepts");
+
+  if (recommendedAnswerEl) recommendedAnswerEl.textContent = result.recommendedAnswer;
+  if (confidenceEl) confidenceEl.textContent = result.confidence === "rápida" ? "rápida" : `${result.confidence}%`;
+  if (explanationEl) explanationEl.textContent = result.explanation;
+  if (conceptsEl) conceptsEl.innerHTML = "";
+
+  document.querySelectorAll(".option-item").forEach((item) => {
+    item.classList.remove("recommended");
+    const oldBtn = item.querySelector(".select-action-btn");
+    if (oldBtn) oldBtn.remove();
+  });
+
+  const targetIndex = result.recommendedOptionIndex;
+  if (targetIndex >= 0) {
+    const targetOption = document.getElementById(`listen-opt-item-${targetIndex}`) || document.getElementById(`opt-item-${targetIndex}`);
+    if (targetOption) {
+      targetOption.classList.add("recommended");
+    }
+  }
+}
+
+function escapePanelHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
