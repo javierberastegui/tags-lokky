@@ -87,14 +87,33 @@ async function updateActionIcon(isListening) {
     });
   } catch (error) {
     await chrome.action.setBadgeText({ text: isListening ? "●" : "" });
-    if (isListening) {
-      await chrome.action.setBadgeBackgroundColor({ color: "#10b981" });
-    }
+    if (isListening) await chrome.action.setBadgeBackgroundColor({ color: "#10b981" });
   }
 
   await chrome.action.setTitle({
     title: isListening ? "Canvas Study — Modo escucha activo" : "Canvas Study"
   });
+}
+
+async function ensureContentScriptInActiveTab() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id || !tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://")) {
+      return;
+    }
+
+    await chrome.scripting.insertCSS({
+      target: { tabId: tab.id, allFrames: true },
+      files: ["content/content.css"]
+    }).catch(() => {});
+
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      files: ["content/content.js"]
+    }).catch(() => {});
+  } catch (error) {
+    console.warn("No se pudo asegurar content script en la pestaña activa:", error.message);
+  }
 }
 
 async function setPendingAnalysisFromSelection(selectedText, tab, source) {
@@ -110,39 +129,29 @@ async function setPendingAnalysisFromSelection(selectedText, tab, source) {
     }
   });
 
-  if (tab.windowId !== undefined) {
-    await chrome.sidePanel.open({ windowId: tab.windowId });
-  }
+  if (tab.windowId !== undefined) await chrome.sidePanel.open({ windowId: tab.windowId });
 
   try {
-    await chrome.runtime.sendMessage({
-      type: "ANALYZE_TEXT",
-      text: cleanText,
-      source: source || "selection"
-    });
+    await chrome.runtime.sendMessage({ type: "ANALYZE_TEXT", text: cleanText, source: source || "selection" });
   } catch (err) {
     console.log("El panel lateral aún no está escuchando. Datos guardados en almacenamiento de sesión.");
   }
 }
 
 async function notifyActiveTabShortcutsChanged(shortcuts) {
+  await ensureContentScriptInActiveTab();
+
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.id) {
-      await chrome.tabs.sendMessage(tab.id, {
-        type: "SHORTCUTS_UPDATED",
-        shortcuts
-      });
+      await chrome.tabs.sendMessage(tab.id, { type: "SHORTCUTS_UPDATED", shortcuts });
     }
   } catch (error) {
     // Algunas páginas no aceptan content scripts; no es un error bloqueante.
   }
 
   try {
-    await chrome.runtime.sendMessage({
-      type: "SHORTCUTS_UPDATED",
-      shortcuts
-    });
+    await chrome.runtime.sendMessage({ type: "SHORTCUTS_UPDATED", shortcuts });
   } catch (error) {
     // El sidepanel puede no estar abierto.
   }
@@ -151,7 +160,6 @@ async function notifyActiveTabShortcutsChanged(shortcuts) {
 function normalizeQuestionData(payload) {
   const data = payload?.data || payload || {};
   const text = String(data.text || payload?.text || "").trim();
-
   return {
     id: data.id || `listen-${Date.now()}`,
     text,
@@ -170,23 +178,18 @@ function buildPrompt(questionData, config) {
 
   if (questionData.options && questionData.options.length > 0) {
     prompt += "Opciones de respuesta disponibles:\n";
-    questionData.options.forEach((opt) => {
-      prompt += `${opt.index}: ${opt.text}\n`;
-    });
+    questionData.options.forEach((opt) => { prompt += `${opt.index}: ${opt.text}\n`; });
     prompt += `\nInstrucciones adicionales:\n1. Selecciona la opción recomendada exacta en 'recommendedAnswer'.\n2. Indica el índice numérico correcto en 'recommendedOptionIndex'. Si no hay respuesta listada, devuelve -1.\n`;
   } else {
     prompt += "\nInstrucciones adicionales:\n1. Resuelve la pregunta directamente en 'recommendedAnswer'.\n2. Pon 'recommendedOptionIndex' como -1.\n";
   }
 
   prompt += `\n3. Explica de forma educativa y clara el porqué en 'explanation' (idioma: ${config.language}).\n4. Devuelve 2 o 3 conceptos clave en 'keyConcepts'.\n5. Asigna una confianza de 0 a 100 en 'confidence'.\n6. Devuelve JSON válido sin texto adicional.`;
-
   return prompt;
 }
 
 async function analyzeQuestionData(questionData) {
-  if (!questionData.text) {
-    throw new Error("No hay texto seleccionado para analizar.");
-  }
+  if (!questionData.text) throw new Error("No hay texto seleccionado para analizar.");
 
   const config = await getAppConfig();
   const prompt = buildPrompt(questionData, config);
@@ -197,20 +200,14 @@ async function analyzeQuestionData(questionData) {
     if (config.apiProvider === "claude") return callClaude(prompt, config);
   }
 
-  if (config.connectionMode === "gateway") {
-    return callOpenAI(prompt, config.gatewayToken, config.gatewayModel, config.gatewayUrl);
-  }
-
-  if (config.connectionMode === "local") {
-    return callOllama(prompt, config.localUrl, config.localModel);
-  }
+  if (config.connectionMode === "gateway") return callOpenAI(prompt, config.gatewayToken, config.gatewayModel, config.gatewayUrl);
+  if (config.connectionMode === "local") return callOllama(prompt, config.localUrl, config.localModel);
 
   throw new Error("Modo de conexión no soportado o mal configurado.");
 }
 
 async function callGemini(prompt, config) {
   if (!config.geminiKey) throw new Error("API Key de Gemini no configurada.");
-
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent?key=${config.geminiKey}`;
   const response = await fetch(url, {
     method: "POST",
@@ -233,12 +230,7 @@ async function callGemini(prompt, config) {
       }
     })
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Error en API de Gemini: ${response.status} - ${text}`);
-  }
-
+  if (!response.ok) throw new Error(`Error en API de Gemini: ${response.status} - ${await response.text()}`);
   const data = await response.json();
   const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText) throw new Error("Gemini no devolvió contenido analizable.");
@@ -246,16 +238,10 @@ async function callGemini(prompt, config) {
 }
 
 async function callOpenAI(prompt, apiKey, model, baseUrl) {
-  if (!apiKey && String(baseUrl).includes("openai.com")) {
-    throw new Error("API Key de OpenAI no configurada.");
-  }
-
+  if (!apiKey && String(baseUrl).includes("openai.com")) throw new Error("API Key de OpenAI no configurada.");
   const endpoint = `${String(baseUrl || "").replace(/\/+$/, "")}/chat/completions`;
   const headers = { "Content-Type": "application/json" };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
-  const systemPrompt = `Eres un asistente de estudio. Devuelve estrictamente JSON válido con recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex.`;
-
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
@@ -263,17 +249,12 @@ async function callOpenAI(prompt, apiKey, model, baseUrl) {
       model,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: "Eres un asistente de estudio. Devuelve estrictamente JSON válido con recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex." },
         { role: "user", content: prompt }
       ]
     })
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Error en llamada OpenAI/Gateway: HTTP ${response.status} - ${text}`);
-  }
-
+  if (!response.ok) throw new Error(`Error en llamada OpenAI/Gateway: HTTP ${response.status} - ${await response.text()}`);
   const data = await response.json();
   const rawText = data.choices?.[0]?.message?.content;
   if (!rawText) throw new Error("OpenAI/Gateway no devolvió contenido analizable.");
@@ -282,7 +263,6 @@ async function callOpenAI(prompt, apiKey, model, baseUrl) {
 
 async function callClaude(prompt, config) {
   if (!config.claudeKey) throw new Error("API Key de Claude no configurada.");
-
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -298,12 +278,7 @@ async function callClaude(prompt, config) {
       messages: [{ role: "user", content: prompt }]
     })
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Error en llamada Claude: HTTP ${response.status} - ${text}`);
-  }
-
+  if (!response.ok) throw new Error(`Error en llamada Claude: HTTP ${response.status} - ${await response.text()}`);
   const data = await response.json();
   const rawText = data.content?.[0]?.text || "";
   const jsonStartIndex = rawText.indexOf("{");
@@ -327,12 +302,7 @@ async function callOllama(prompt, localUrl, model) {
       ]
     })
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Error en Ollama local: HTTP ${response.status} - ${text}`);
-  }
-
+  if (!response.ok) throw new Error(`Error en Ollama local: HTTP ${response.status} - ${await response.text()}`);
   const data = await response.json();
   return JSON.parse(data.message.content);
 }
@@ -354,27 +324,16 @@ async function handleListenSelection(message) {
   const questionData = normalizeQuestionData(message);
   const result = await analyzeQuestionData(questionData);
   const answerLetter = indexToLetter(result.recommendedOptionIndex);
-
   await saveAnalysisToHistory(questionData, result);
-  await chrome.storage.session.set({
-    pendingAnalysis: {
-      type: "analysis_result",
-      questionData,
-      result,
-      timestamp: Date.now(),
-      source: "listen_mode"
-    }
-  });
+  await chrome.storage.session.set({ pendingAnalysis: { type: "analysis_result", questionData, result, timestamp: Date.now(), source: "listen_mode" } });
+  return { success: true, questionData, result, overlay: { answerLabel: answerLetter || result.recommendedAnswer, confidence: result.confidence } };
+}
 
-  return {
-    success: true,
-    questionData,
-    result,
-    overlay: {
-      answerLabel: answerLetter || result.recommendedAnswer,
-      confidence: result.confidence
-    }
-  };
+async function toggleListenMode() {
+  const current = await getShortcutsConfig();
+  const shortcuts = await saveShortcutsConfig({ listenModeEnabled: !current.listenModeEnabled });
+  await notifyActiveTabShortcutsChanged(shortcuts);
+  return shortcuts;
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -382,6 +341,11 @@ chrome.runtime.onInstalled.addListener(async () => {
   const shortcuts = await getShortcutsConfig();
   await saveShortcutsConfig(shortcuts);
   console.log("Menú contextual 'Analizar con Gemini' registrado con éxito.");
+});
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== "toggle-listen-mode") return;
+  await toggleListenMode();
 });
 
 getShortcutsConfig()
@@ -400,36 +364,18 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
-    if (message.type === "LISTEN_SELECTION") {
-      sendResponse(await handleListenSelection(message));
-      return;
-    }
-
-    if (message.type === "GET_SHORTCUTS") {
-      sendResponse({ success: true, shortcuts: await getShortcutsConfig() });
-      return;
-    }
-
+    if (message.type === "LISTEN_SELECTION") return sendResponse(await handleListenSelection(message));
+    if (message.type === "GET_SHORTCUTS") return sendResponse({ success: true, shortcuts: await getShortcutsConfig() });
     if (message.type === "SAVE_SHORTCUTS") {
       const shortcuts = await saveShortcutsConfig(message.shortcuts || {});
       await notifyActiveTabShortcutsChanged(shortcuts);
-      sendResponse({ success: true, shortcuts });
-      return;
+      return sendResponse({ success: true, shortcuts });
     }
-
-    if (message.type === "TOGGLE_LISTEN_MODE") {
-      const current = await getShortcutsConfig();
-      const shortcuts = await saveShortcutsConfig({ listenModeEnabled: !current.listenModeEnabled });
-      await notifyActiveTabShortcutsChanged(shortcuts);
-      sendResponse({ success: true, shortcuts });
-      return;
-    }
-
+    if (message.type === "TOGGLE_LISTEN_MODE") return sendResponse({ success: true, shortcuts: await toggleListenMode() });
     sendResponse({ success: false, error: "Mensaje no soportado por background." });
   })().catch((error) => {
     console.error("Error en background.onMessage:", error);
     sendResponse({ success: false, error: error.message });
   });
-
   return true;
 });
