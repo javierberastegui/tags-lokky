@@ -166,6 +166,20 @@
           </div>
           <div class="toast hidden" id="shortcutsToast">Atajo guardado con éxito.</div>
         </div>
+
+        <div class="card shortcut-card diagnostic-card">
+          <div class="card-header">
+            <span class="card-tag tag-blue">Diagnóstico Modo escucha</span>
+            <span class="shortcut-state-pill" id="diagnosticStatusPill">Sin datos</span>
+          </div>
+          <p class="shortcut-description">Usa esto cuando el icono no muestre A/B/C/D o cuando el panel no reciba la pregunta. Copia el diagnóstico y pégalo en el chat.</p>
+          <div class="config-actions">
+            <button class="btn btn-secondary" id="refreshDiagnosticBtn" type="button" style="flex: 1;">Actualizar diagnóstico</button>
+            <button class="btn btn-primary" id="copyDiagnosticBtn" type="button" style="flex: 1;">Copiar diagnóstico</button>
+          </div>
+          <pre class="diagnostic-output" id="listenDiagnosticOutput">Sin diagnóstico todavía.</pre>
+          <div class="toast hidden" id="diagnosticToast">Diagnóstico copiado.</div>
+        </div>
       </section>
 
       <!-- PESTAÑA: CONEXIONES -->
