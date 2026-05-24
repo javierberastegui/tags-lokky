@@ -75,3 +75,81 @@
   flex-wrap: wrap !important;
   gap: 12px !important;
 }
+
+/* Feedback rápido del Modo escucha */
+.lokky-listen-feedback {
+  position: fixed !important;
+  right: 18px !important;
+  bottom: 18px !important;
+  z-index: 2147483647 !important;
+  padding: 10px 14px !important;
+  border-radius: 999px !important;
+  color: #ffffff !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.2px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35) !important;
+  pointer-events: none !important;
+}
+
+.lokky-listen-feedback.on {
+  background: rgba(16, 185, 129, 0.96) !important;
+}
+
+.lokky-listen-feedback.off {
+  background: rgba(244, 63, 94, 0.96) !important;
+}
+
+/* Burbuja de respuesta en Modo escucha */
+.lokky-answer-overlay {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  min-width: 76px !important;
+  max-width: 240px !important;
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  background: rgba(9, 9, 18, 0.92) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(16, 185, 129, 0.45) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42), 0 0 22px rgba(16, 185, 129, 0.18) !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  text-align: center !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  transform: translateY(8px) scale(0.97) !important;
+  transition: opacity 0.16s ease, transform 0.16s ease !important;
+}
+
+.lokky-answer-overlay.visible {
+  opacity: 1 !important;
+  transform: translateY(0) scale(1) !important;
+}
+
+.lokky-answer-overlay.error {
+  border-color: rgba(244, 63, 94, 0.5) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42), 0 0 22px rgba(244, 63, 94, 0.18) !important;
+}
+
+.lokky-answer-main {
+  font-size: 30px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  color: #34d399 !important;
+  text-transform: uppercase !important;
+}
+
+.lokky-answer-overlay.error .lokky-answer-main {
+  color: #fb7185 !important;
+}
+
+.lokky-answer-meta {
+  margin-top: 6px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  color: rgba(255, 255, 255, 0.66) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
