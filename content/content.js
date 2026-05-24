@@ -53,52 +53,154 @@
     return rects[0] || range.getBoundingClientRect();
   }
 
-  function extractOptionsNearSelection(selectionRect) {
-    const questionEl = findClosestQuestionContainer(selectionRect);
-    if (!questionEl) return [];
-
-    const answerEls = questionEl.querySelectorAll('.answers .answer, li, label');
-    const options = [];
-    const seen = new Set();
-
-    answerEls.forEach((ansEl) => {
-      const textEl = ansEl.querySelector?.('.answer_text, .answer_label') || ansEl;
-      const text = (textEl.innerText || textEl.textContent || "").trim();
-      if (!text || seen.has(text) || text.length > 400) return;
-      seen.add(text);
-
-      const input = ansEl.querySelector?.('input[type="radio"], input[type="checkbox"]');
-      options.push({
-        id: input ? input.id : null,
-        index: options.length,
-        text
-      });
-    });
-
-    return options.slice(0, 8);
+  function isVisibleElement(element) {
+    if (!element) return false;
+    const style = window.getComputedStyle(element);
+    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
   }
 
-  function findClosestQuestionContainer(selectionRect) {
-    const candidateSelectors = [
+  function cleanOptionText(text) {
+    return String(text || "")
+      .replace(/^[A-D][).:\-\s]+/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getInputOptionText(input) {
+    if (!input) return "";
+
+    if (input.id) {
+      const labelFor = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+      const labelText = cleanOptionText(labelFor?.innerText || labelFor?.textContent || "");
+      if (labelText) return labelText;
+    }
+
+    const closestLabel = input.closest("label");
+    const closestLabelText = cleanOptionText(closestLabel?.innerText || closestLabel?.textContent || "");
+    if (closestLabelText) return closestLabelText;
+
+    const optionContainer = input.closest('.answer, [class*="answer"], [class*="option"], li, div');
+    const optionText = cleanOptionText(optionContainer?.innerText || optionContainer?.textContent || "");
+    if (optionText) return optionText;
+
+    return "";
+  }
+
+  function findQuestionContainerFromSelection(selectionRect) {
+    const selection = getSelection();
+    let node = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).commonAncestorContainer : null;
+    let element = node && node.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+
+    const centerX = selectionRect ? selectionRect.left + selectionRect.width / 2 : window.innerWidth / 2;
+    const centerY = selectionRect ? selectionRect.top + selectionRect.height / 2 : window.innerHeight / 2;
+    const pointElement = document.elementFromPoint(centerX, centerY);
+    if (!element && pointElement) element = pointElement;
+
+    const hardSelectors = [
       '.question.display_question',
+      '[data-testid*="question"]',
       '[class*="question"]',
+      '[class*="Question"]',
+      '[class*="exercise"]',
+      '[class*="quiz"]',
+      '[class*="card"]',
       'fieldset',
       'form',
       'article',
       'section'
     ];
 
-    const centerX = selectionRect ? selectionRect.left + selectionRect.width / 2 : window.innerWidth / 2;
-    const centerY = selectionRect ? selectionRect.top + selectionRect.height / 2 : window.innerHeight / 2;
-    const target = document.elementFromPoint(centerX, centerY);
-    if (!target) return null;
-
-    for (const selector of candidateSelectors) {
-      const container = target.closest(selector);
-      if (container) return container;
+    for (const selector of hardSelectors) {
+      const container = element?.closest?.(selector);
+      if (container && countVisibleChoiceInputs(container) >= 2) return container;
     }
 
-    return target.parentElement;
+    let current = element;
+    while (current && current !== document.body && current !== document.documentElement) {
+      if (countVisibleChoiceInputs(current) >= 2) return current;
+      current = current.parentElement;
+    }
+
+    return element?.parentElement || document.body;
+  }
+
+  function countVisibleChoiceInputs(container) {
+    return Array.from(container?.querySelectorAll?.('input[type="radio"], input[type="checkbox"]') || [])
+      .filter(isVisibleElement)
+      .length;
+  }
+
+  function extractOptionsFromChoiceInputs(container) {
+    const inputs = Array.from(container?.querySelectorAll?.('input[type="radio"], input[type="checkbox"]') || [])
+      .filter(isVisibleElement);
+
+    const options = [];
+    const seen = new Set();
+
+    inputs.forEach((input) => {
+      const text = getInputOptionText(input);
+      if (!text || text.length > 500 || seen.has(text)) return;
+      seen.add(text);
+      options.push({
+        id: input.id || null,
+        index: options.length,
+        text
+      });
+    });
+
+    return options.slice(0, 10);
+  }
+
+  function extractOptionsFromVisibleRows(container, selectionRect) {
+    const selectors = [
+      '.answers .answer',
+      '[class*="answer"]',
+      '[class*="option"]',
+      '[role="radio"]',
+      '[role="checkbox"]'
+    ];
+    const candidates = selectors.flatMap((selector) => Array.from(container?.querySelectorAll?.(selector) || []));
+    const options = [];
+    const seen = new Set();
+
+    candidates.forEach((candidate) => {
+      if (!isVisibleElement(candidate)) return;
+      const text = cleanOptionText(candidate.innerText || candidate.textContent || "");
+      if (!text || text.length > 500 || seen.has(text)) return;
+      seen.add(text);
+      options.push({ id: null, index: options.length, text });
+    });
+
+    if (options.length >= 2) return options.slice(0, 10);
+
+    const centerY = selectionRect ? selectionRect.bottom : 0;
+    const textBlocks = Array.from(document.querySelectorAll("label, li, div, button"))
+      .filter(isVisibleElement)
+      .map((el) => ({ el, rect: el.getBoundingClientRect(), text: cleanOptionText(el.innerText || el.textContent || "") }))
+      .filter((item) => item.text && item.text.length <= 250 && item.rect.top >= centerY - 20 && item.rect.top <= centerY + 520)
+      .sort((a, b) => a.rect.top - b.rect.top);
+
+    for (const item of textBlocks) {
+      if (options.length >= 4) break;
+      if (seen.has(item.text)) continue;
+      seen.add(item.text);
+      options.push({ id: null, index: options.length, text: item.text });
+    }
+
+    return options.slice(0, 10);
+  }
+
+  function extractOptionsNearSelection(selectionRect) {
+    const container = findQuestionContainerFromSelection(selectionRect);
+    const byInputs = extractOptionsFromChoiceInputs(container);
+    if (byInputs.length >= 2) return byInputs;
+
+    const byRows = extractOptionsFromVisibleRows(container, selectionRect);
+    if (byRows.length >= 2) return byRows;
+
+    return [];
   }
 
   async function toggleListenModeFromPage() {
@@ -110,6 +212,20 @@
     } catch (error) {
       console.warn("No se pudo alternar el modo escucha:", error.message);
     }
+  }
+
+  function buildListenPayload(selectedText, selectionRect) {
+    const options = extractOptionsNearSelection(selectionRect);
+    const optionText = options.length
+      ? `\n\nOpciones detectadas:\n${options.map((option) => `${String.fromCharCode(65 + option.index)}. ${option.text}`).join("\n")}`
+      : "";
+
+    return {
+      id: `listen-${Date.now()}`,
+      text: `${selectedText}${optionText}`,
+      options,
+      sourceUrl: window.location.href
+    };
   }
 
   function scheduleListenSelectionSend() {
@@ -130,12 +246,7 @@
       try {
         const response = await chrome.runtime.sendMessage({
           type: "LISTEN_SELECTION",
-          data: {
-            id: `listen-${Date.now()}`,
-            text: selectedText,
-            options: extractOptionsNearSelection(selectionRect),
-            sourceUrl: window.location.href
-          }
+          data: buildListenPayload(selectedText, selectionRect)
         });
 
         if (!response || !response.success) {
