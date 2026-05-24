@@ -5,6 +5,19 @@ Registrar decisiones sobre la pestaña Atajos, teclas programables y acciones r�
 
 ## Entradas
 
+### 2026-05-24 — Rediseño del icono de extensión para hiperfoco en Modo escucha
+- Contexto: El usuario reportó que los colores del badge y el estilo de ondas del Modo escucha le quitaban el foco.
+- Objetivo: Diseñar un icono minimalista y monocromático que mantenga el hiperfoco.
+- Archivos tocados: `background.js`, `doc/logs/frontend/atajos.md`.
+- Decisiones tomadas:
+  - Cambiar el fondo del icono dynamic canvas para que siempre sea de color `#383838`.
+  - El Modo escucha activo se representa como un punto en el centro de color `#171717`.
+  - Al recibir una respuesta (letra), esta se dibuja en el centro del icono en color `#171717` en lugar del badge de Chrome.
+  - La letra se muestra durante exactamente 1 segundo (1000ms) y luego el icono vuelve automáticamente al punto `#171717` en el centro.
+  - Se deshabilita el texto del badge de Chrome (`setBadgeText("")`) para evitar superposiciones de colores y marcos.
+- Validaciones ejecutadas: Comprobación visual lógica y recarga de funciones canvas.
+- Siguiente paso: Validar recargando en el navegador y probando el flujo.
+
 ### 2026-05-24 — Corrección del error de exclamación en Modo escucha bajo Hermes
 - Contexto: Al usar el Modo escucha con la conexión configurada en el Gateway de Hermes local, la resolución de respuesta corta (`resolveAnswerLetter` en `background.js`) fallaba porque intentaba usar la interfaz genérica de OpenAI en el puerto de Hermes, causando un error de conexión (HTTP 404) y mostrando un signo de exclamación (`!`) en la insignia del icono.
 - Objetivo: Evitar el error de conexión y el badge de exclamación resolviendo correctamente las llamadas rápidas a través de la API específica de Hermes local en segundo plano.

@@ -56,38 +56,40 @@ async function resetListenModeOnBoot() {
   await updateActionIcon(false);
 }
 
-function createActionIcon(isListening, size) {
+function createActionIcon(isListening, size, letterToShow = "") {
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, size, size);
 
-  if (!isListening) {
-    ctx.fillStyle = "#4b5563";
-    ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = "#f9fafb";
-    ctx.font = `700 ${Math.floor(size * 0.6)}px system-ui, sans-serif`;
+  // El envoltorio siempre es de color #383838
+  ctx.fillStyle = "#383838";
+  ctx.fillRect(0, 0, size, size);
+
+  if (letterToShow && letterToShow !== "") {
+    // Si hay una respuesta o estado temporal, se dibuja la letra en color #171717
+    ctx.fillStyle = "#171717";
+    ctx.font = `bold ${Math.floor(size * 0.7)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("C", size / 2, size / 2 + 1);
+    ctx.fillText(letterToShow, size / 2, size / 2 + 1);
     return ctx.getImageData(0, 0, size, size);
   }
 
-  ctx.fillStyle = "#10b981";
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
-  ctx.fill();
+  if (isListening) {
+    // Modo escucha activo: un punto en el centro de color #171717
+    ctx.fillStyle = "#171717";
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    return ctx.getImageData(0, 0, size, size);
+  }
 
-  ctx.strokeStyle = "rgba(255,255,255,0.92)";
-  ctx.lineWidth = Math.max(1, size * 0.06);
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size * 0.34, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.fillStyle = "#ef4444";
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size * 0.16, 0, Math.PI * 2);
-  ctx.fill();
-
+  // Modo escucha inactivo: icono de la aplicación (letra C tenue en gris claro)
+  ctx.fillStyle = "#a1a1aa";
+  ctx.font = `bold ${Math.floor(size * 0.6)}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("C", size / 2, size / 2 + 1);
   return ctx.getImageData(0, 0, size, size);
 }
 
@@ -100,35 +102,50 @@ async function setActionBadge(text, color = "#10b981") {
   }
 }
 
-async function updateActionIcon(isListening, badgeText = "", titleSuffix = "") {
-  const cleanBadge = String(badgeText || "").trim().slice(0, 4).toUpperCase();
+async function updateActionIcon(isListening, letterToShow = "", titleSuffix = "") {
+  const cleanLetter = String(letterToShow || "").trim().slice(0, 4).toUpperCase();
 
   try {
     await chrome.action.setIcon({
       imageData: {
-        16: createActionIcon(isListening, 16),
-        32: createActionIcon(isListening, 32)
+        16: createActionIcon(isListening, 16, cleanLetter),
+        32: createActionIcon(isListening, 32, cleanLetter)
       }
     });
   } catch (error) {
     console.warn("No se pudo pintar icono dinámico:", error.message);
   }
 
-  if (!isListening) {
-    await setActionBadge("");
-  } else if (cleanBadge) {
-    await setActionBadge(cleanBadge, cleanBadge === "!" || cleanBadge === "ERR" ? "#ef4444" : "#10b981");
-  } else {
-    await setActionBadge("");
-  }
+  // Dejamos la insignia sin texto para evitar que Chrome pinte el cuadro de fondo verde/rojo
+  await setActionBadge("");
 
   await chrome.action.setTitle({
     title: isListening
-      ? cleanBadge
-        ? `Canvas Study — Respuesta sugerida: ${cleanBadge}${titleSuffix ? ` — ${titleSuffix}` : ""}`
+      ? cleanLetter
+        ? `Canvas Study — Respuesta sugerida: ${cleanLetter}${titleSuffix ? ` — ${titleSuffix}` : ""}`
         : "Canvas Study — Modo escucha activo"
       : "Canvas Study"
   });
+
+  // Cuando hay una respuesta (y se está escuchando), se muestra la letra durante 1 segundo,
+  // y después vuelve automáticamente al punto del mismo color en el centro.
+  if (isListening && cleanLetter && cleanLetter !== "...") {
+    setTimeout(async () => {
+      const currentShortcuts = await getShortcutsConfig();
+      if (currentShortcuts.listenModeEnabled) {
+        try {
+          await chrome.action.setIcon({
+            imageData: {
+              16: createActionIcon(true, 16, ""),
+              32: createActionIcon(true, 32, "")
+            }
+          });
+        } catch (error) {
+          console.warn("No se pudo restaurar el icono de escucha:", error.message);
+        }
+      }
+    }, 1000);
+  }
 }
 
 async function ensureContentScriptInActiveTab() {
