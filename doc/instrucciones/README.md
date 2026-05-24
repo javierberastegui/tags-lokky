@@ -35,7 +35,7 @@ Esta carpeta existe para que el agente pueda:
 - crear trazabilidad nueva si aparecen módulos o superficies nuevas
 - escribir logs, incidencias y relevos sin mezclarlo todo en un único archivo
 - proteger permisos, privacidad, claves y uso autorizado
-- continuar tareas con órdenes como “sigue con popup”, “sigue con content script”, “sigue con IA” o “sigue con permisos”
+- continuar tareas con órdenes como “sigue con popup”, “sigue con content script”, “sigue con IA”, “sigue con conexiones” o “sigue con permisos”
 
 ## Ejemplos de uso diario
 Órdenes naturales esperadas:
@@ -43,7 +43,7 @@ Esta carpeta existe para que el agente pueda:
 - `Sigue con permisos`
 - `Sigue con content script`
 - `Sigue con popup`
-- `Sigue con options`
+- `Sigue con conexiones`
 - `Sigue con IA`
 - `Sigue con eventos`
 - `Sigue con storage`
