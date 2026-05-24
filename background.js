@@ -94,7 +94,7 @@ async function setActionBadge(text, color = "#10b981") {
   }
 }
 
-async function updateActionIcon(isListening, badgeText = "") {
+async function updateActionIcon(isListening, badgeText = "", titleSuffix = "") {
   const cleanBadge = String(badgeText || "").trim().slice(0, 4).toUpperCase();
 
   try {
@@ -111,7 +111,8 @@ async function updateActionIcon(isListening, badgeText = "") {
   if (!isListening) {
     await setActionBadge("");
   } else if (cleanBadge) {
-    await setActionBadge(cleanBadge, cleanBadge === "!" ? "#ef4444" : "#10b981");
+    const color = cleanBadge === "!" || cleanBadge === "ERR" ? "#ef4444" : "#10b981";
+    await setActionBadge(cleanBadge, color);
   } else {
     await setActionBadge("");
   }
@@ -119,7 +120,7 @@ async function updateActionIcon(isListening, badgeText = "") {
   await chrome.action.setTitle({
     title: isListening
       ? cleanBadge
-        ? `Canvas Study — Respuesta sugerida: ${cleanBadge}`
+        ? `Canvas Study — Respuesta sugerida: ${cleanBadge}${titleSuffix ? ` — ${titleSuffix}` : ""}`
         : "Canvas Study — Modo escucha activo"
       : "Canvas Study"
   });
@@ -182,14 +183,21 @@ function normalizeQuestionData(payload) {
   };
 }
 
-function indexToLetter(index) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  return Number.isInteger(index) && index >= 0 ? alphabet[index] || String(index) : "";
-}
-
 function cleanAnswerLetter(value) {
   const match = String(value || "").trim().match(/^[A-D]$/i);
   return match ? match[0].toUpperCase() : "";
+}
+
+function extractLetterFromText(value) {
+  const raw = String(value || "").trim();
+  const direct = cleanAnswerLetter(raw);
+  if (direct) return direct;
+
+  const labeled = raw.match(/(?:respuesta|opci[oó]n|letra|correcta)\s*[:\-]?\s*([A-D])/i);
+  if (labeled) return labeled[1].toUpperCase();
+
+  const anyLetter = raw.match(/\b([A-D])\b/i);
+  return anyLetter ? anyLetter[1].toUpperCase() : "";
 }
 
 function normalizeTextForMatch(value) {
@@ -203,89 +211,61 @@ function normalizeTextForMatch(value) {
     .trim();
 }
 
-function extractLetterFromAnswer(answer) {
-  const match = String(answer || "").match(/\b([A-D])\b/i);
-  return match ? match[1].toUpperCase() : "";
-}
-
-function findOptionLetterFromAnswer(questionData, result) {
-  const aiLetter = cleanAnswerLetter(result?.answerLetter);
-  if (aiLetter) return aiLetter;
-
-  const directLetter = indexToLetter(result?.recommendedOptionIndex);
-  if (directLetter) return directLetter;
-
-  const explicitLetter = extractLetterFromAnswer(result?.recommendedAnswer);
-  if (explicitLetter) return explicitLetter;
-
-  const answerText = normalizeTextForMatch(result?.recommendedAnswer);
+function findLetterByOptionText(questionData, rawAnswer) {
+  const answerText = normalizeTextForMatch(rawAnswer);
   if (!answerText || !Array.isArray(questionData.options)) return "";
 
-  const exactIndex = questionData.options.findIndex((option) => {
-    const optionText = normalizeTextForMatch(option.text);
-    return optionText && optionText === answerText;
-  });
-  if (exactIndex >= 0) return indexToLetter(exactIndex);
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const exactIndex = questionData.options.findIndex((option) => normalizeTextForMatch(option.text) === answerText);
+  if (exactIndex >= 0) return alphabet[exactIndex] || "";
 
   const partialIndex = questionData.options.findIndex((option) => {
     const optionText = normalizeTextForMatch(option.text);
     return optionText && (optionText.includes(answerText) || answerText.includes(optionText));
   });
-  if (partialIndex >= 0) return indexToLetter(partialIndex);
+  if (partialIndex >= 0) return alphabet[partialIndex] || "";
 
   return "";
 }
 
-function buildPrompt(questionData, config) {
-  let prompt = `Analiza la siguiente pregunta académica y devuelve una respuesta útil para estudio.\n\nPregunta:\n"${questionData.text}"\n\n`;
+function buildLetterPrompt(questionData) {
+  let prompt = "Responde SOLO con una letra: A, B, C o D. No expliques nada. No uses JSON.\n\n";
+  prompt += `Pregunta:\n${questionData.text}\n\n`;
 
   if (questionData.options && questionData.options.length > 0) {
-    prompt += "Opciones de respuesta disponibles:\n";
-    questionData.options.forEach((opt) => { prompt += `${String.fromCharCode(65 + opt.index)}. ${opt.text}\n`; });
-    prompt += `\nInstrucciones adicionales:\n1. Devuelve la letra exacta de la opción correcta en 'answerLetter'. Solo puede ser A, B, C o D.\n2. Selecciona la opción recomendada exacta en 'recommendedAnswer'.\n3. Indica el índice numérico correcto en 'recommendedOptionIndex'. A=0, B=1, C=2, D=3.\n`;
-  } else {
-    prompt += "\nInstrucciones adicionales:\n1. Si el texto incluye opciones A/B/C/D, devuelve la letra exacta en 'answerLetter'.\n2. Pon 'recommendedOptionIndex' como -1 si no puedes deducir índice.\n";
+    prompt += "Opciones:\n";
+    questionData.options.slice(0, 4).forEach((option, index) => {
+      prompt += `${String.fromCharCode(65 + index)}. ${option.text}\n`;
+    });
   }
 
-  prompt += `\n4. Explica de forma educativa y clara el porqué en 'explanation' (idioma: ${config.language}).\n5. Devuelve 2 o 3 conceptos clave en 'keyConcepts'.\n6. Asigna una confianza de 0 a 100 en 'confidence'.\n7. Devuelve JSON válido sin texto adicional.`;
+  prompt += "\nDevuelve únicamente la letra correcta.";
   return prompt;
 }
 
-async function analyzeQuestionData(questionData) {
-  if (!questionData.text) throw new Error("No hay texto seleccionado para analizar.");
-
+async function resolveAnswerLetter(questionData) {
   const config = await getAppConfig();
-  const prompt = buildPrompt(questionData, config);
+  const prompt = buildLetterPrompt(questionData);
+  let rawAnswer = "";
 
   if (config.connectionMode === "api") {
-    if (config.apiProvider === "gemini") return callGemini(prompt, config);
-    if (config.apiProvider === "openai") return callOpenAI(prompt, config.openaiKey, config.openaiModel, "https://api.openai.com/v1");
-    if (config.apiProvider === "claude") return callClaude(prompt, config);
+    if (config.apiProvider === "gemini") rawAnswer = await callGeminiLetter(prompt, config);
+    else if (config.apiProvider === "openai") rawAnswer = await callOpenAILetter(prompt, config.openaiKey, config.openaiModel, "https://api.openai.com/v1");
+    else if (config.apiProvider === "claude") rawAnswer = await callClaudeLetter(prompt, config);
+  } else if (config.connectionMode === "gateway") {
+    rawAnswer = await callOpenAILetter(prompt, config.gatewayToken, config.gatewayModel, config.gatewayUrl);
+  } else if (config.connectionMode === "local") {
+    rawAnswer = await callOllamaLetter(prompt, config.localUrl, config.localModel);
+  } else {
+    throw new Error("Modo de conexión no soportado o mal configurado.");
   }
 
-  if (config.connectionMode === "gateway") return callOpenAI(prompt, config.gatewayToken, config.gatewayModel, config.gatewayUrl);
-  if (config.connectionMode === "local") return callOllama(prompt, config.localUrl, config.localModel);
-
-  throw new Error("Modo de conexión no soportado o mal configurado.");
+  return extractLetterFromText(rawAnswer) || findLetterByOptionText(questionData, rawAnswer) || "?";
 }
 
-function getResponseSchema() {
-  return {
-    type: "OBJECT",
-    properties: {
-      answerLetter: { type: "STRING" },
-      recommendedAnswer: { type: "STRING" },
-      explanation: { type: "STRING" },
-      confidence: { type: "INTEGER" },
-      keyConcepts: { type: "ARRAY", items: { type: "STRING" } },
-      recommendedOptionIndex: { type: "INTEGER" }
-    },
-    required: ["answerLetter", "recommendedAnswer", "explanation", "confidence", "keyConcepts"]
-  };
-}
-
-async function callGemini(prompt, config) {
+async function callGeminiLetter(prompt, config) {
   if (!config.geminiKey) throw new Error("API Key de Gemini no configurada.");
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent?key=${config.geminiKey}`;
   const response = await fetch(url, {
     method: "POST",
@@ -293,44 +273,48 @@ async function callGemini(prompt, config) {
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: getResponseSchema()
+        temperature: 0,
+        maxOutputTokens: 8
       }
     })
   });
+
   if (!response.ok) throw new Error(`Error en API de Gemini: ${response.status} - ${await response.text()}`);
+
   const data = await response.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) throw new Error("Gemini no devolvió contenido analizable.");
-  return JSON.parse(rawText);
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-async function callOpenAI(prompt, apiKey, model, baseUrl) {
+async function callOpenAILetter(prompt, apiKey, model, baseUrl) {
   if (!apiKey && String(baseUrl).includes("openai.com")) throw new Error("API Key de OpenAI no configurada.");
+
   const endpoint = `${String(baseUrl || "").replace(/\/+$/, "")}/chat/completions`;
   const headers = { "Content-Type": "application/json" };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify({
       model,
-      response_format: { type: "json_object" },
+      temperature: 0,
+      max_tokens: 4,
       messages: [
-        { role: "system", content: "Eres un asistente de estudio. Devuelve estrictamente JSON válido con answerLetter, recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex. answerLetter debe ser A, B, C, D o ?." },
+        { role: "system", content: "Responde exclusivamente con una letra: A, B, C o D." },
         { role: "user", content: prompt }
       ]
     })
   });
+
   if (!response.ok) throw new Error(`Error en llamada OpenAI/Gateway: HTTP ${response.status} - ${await response.text()}`);
+
   const data = await response.json();
-  const rawText = data.choices?.[0]?.message?.content;
-  if (!rawText) throw new Error("OpenAI/Gateway no devolvió contenido analizable.");
-  return JSON.parse(rawText);
+  return data.choices?.[0]?.message?.content || "";
 }
 
-async function callClaude(prompt, config) {
+async function callClaudeLetter(prompt, config) {
   if (!config.claudeKey) throw new Error("API Key de Claude no configurada.");
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -341,50 +325,63 @@ async function callClaude(prompt, config) {
     },
     body: JSON.stringify({
       model: config.claudeModel,
-      max_tokens: 1024,
-      system: "Devuelve estrictamente JSON válido con answerLetter, recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex. answerLetter debe ser A, B, C, D o ?.",
+      max_tokens: 4,
+      temperature: 0,
+      system: "Responde exclusivamente con una letra: A, B, C o D.",
       messages: [{ role: "user", content: prompt }]
     })
   });
+
   if (!response.ok) throw new Error(`Error en llamada Claude: HTTP ${response.status} - ${await response.text()}`);
+
   const data = await response.json();
-  const rawText = data.content?.[0]?.text || "";
-  const jsonStartIndex = rawText.indexOf("{");
-  const jsonEndIndex = rawText.lastIndexOf("}");
-  if (jsonStartIndex === -1 || jsonEndIndex === -1) throw new Error("Claude no devolvió un JSON estructurado.");
-  return JSON.parse(rawText.substring(jsonStartIndex, jsonEndIndex + 1));
+  return data.content?.[0]?.text || "";
 }
 
-async function callOllama(prompt, localUrl, model) {
+async function callOllamaLetter(prompt, localUrl, model) {
   const endpoint = `${String(localUrl || "").replace(/\/+$/, "")}/api/chat`;
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
-      format: "json",
       stream: false,
+      options: { temperature: 0 },
       messages: [
-        { role: "system", content: "Devuelve estrictamente JSON válido con answerLetter, recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex. answerLetter debe ser A, B, C, D o ?." },
+        { role: "system", content: "Responde exclusivamente con una letra: A, B, C o D." },
         { role: "user", content: prompt }
       ]
     })
   });
+
   if (!response.ok) throw new Error(`Error en Ollama local: HTTP ${response.status} - ${await response.text()}`);
+
   const data = await response.json();
-  return JSON.parse(data.message.content);
+  return data.message?.content || "";
 }
 
-async function saveAnalysisToHistory(questionData, result) {
+async function saveListenResultToHistory(questionData, answerLetter) {
   try {
     const historyObj = await chrome.storage.local.get("solveHistory");
     let history = historyObj.solveHistory || [];
-    history = history.filter((item) => item.question.text !== questionData.text);
-    history.unshift({ id: questionData.id, timestamp: Date.now(), question: questionData, analysis: result });
+    history = history.filter((item) => item.question?.text !== questionData.text);
+    history.unshift({
+      id: questionData.id,
+      timestamp: Date.now(),
+      question: questionData,
+      analysis: {
+        answerLetter,
+        recommendedAnswer: answerLetter,
+        explanation: "Respuesta rápida generada desde Modo escucha. Abre el panel para usar el flujo con explicación completa.",
+        confidence: null,
+        keyConcepts: [],
+        recommendedOptionIndex: Math.max(0, "ABCD".indexOf(answerLetter))
+      }
+    });
     if (history.length > 30) history = history.slice(0, 30);
     await chrome.storage.local.set({ solveHistory: history });
   } catch (error) {
-    console.error("Error al guardar análisis en historial:", error);
+    console.error("Error al guardar resultado rápido en historial:", error);
   }
 }
 
@@ -393,16 +390,25 @@ async function handleListenSelection(message) {
 
   try {
     const questionData = normalizeQuestionData(message);
-    const result = await analyzeQuestionData(questionData);
-    const answerLabel = findOptionLetterFromAnswer(questionData, result) || cleanAnswerLetter(result?.answerLetter) || "?";
+    const answerLetter = await resolveAnswerLetter(questionData);
 
-    await saveAnalysisToHistory(questionData, result);
-    await chrome.storage.session.set({ pendingAnalysis: { type: "analysis_result", questionData, result, timestamp: Date.now(), source: "listen_mode" } });
-    await updateActionIcon(true, answerLabel);
+    await saveListenResultToHistory(questionData, answerLetter);
+    await chrome.storage.session.set({
+      pendingAnalysis: {
+        type: "listen_quick_result",
+        questionData,
+        result: { answerLetter, recommendedAnswer: answerLetter },
+        timestamp: Date.now(),
+        source: "listen_mode"
+      }
+    });
 
-    return { success: true, questionData, result, iconAnswer: answerLabel };
+    await updateActionIcon(true, answerLetter);
+    return { success: true, questionData, iconAnswer: answerLetter };
   } catch (error) {
-    await updateActionIcon(true, "!");
+    const safeError = `[${new Date().toLocaleTimeString()}] Error en Modo escucha: ${error.message}`;
+    await chrome.storage.local.set({ lastError: safeError });
+    await updateActionIcon(true, "!", error.message.slice(0, 80));
     throw error;
   }
 }
