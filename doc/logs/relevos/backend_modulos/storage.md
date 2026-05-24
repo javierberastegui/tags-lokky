@@ -1,15 +1,15 @@
 # Relevo: storage
 
 ## Estado actual
-Dominio documental creado para almacenamiento local/configuración.
+Se implementó el historial estructurado agrupado por prueba (`quizSessions`) con soporte para exportación en Markdown y JSON desde el panel lateral.
 
 ## Hecho en la última etapa
 - Registrado dominio en `doc/instrucciones/mapa_dominios.md`.
-- Definido que claves y preferencias deben pasar por wrapper seguro.
+- Creado log de storage en `doc/logs/backend_modulos/storage.md`.
+- Implementado el guardado en `chrome.storage.local` agrupando preguntas bajo sesiones con ID y título de cuestionario extraídos del DOM.
+- Diseñada e implementada la UI interactiva en la pestaña de Historial para expandir cuestionarios y exportar reportes.
 
 ## No hecho / pendiente
-- Falta log específico de storage si se empieza a implementar.
-- Falta wrapper técnico para `chrome.storage` / `browser.storage`.
 - Falta política concreta de cifrado/ocultación si se guardan claves.
 
 ## Riesgos o trampas conocidas

@@ -183,7 +183,9 @@ function normalizeQuestionData(payload) {
     id: data.id || `listen-${Date.now()}`,
     text: String(data.text || payload?.text || "").trim(),
     options: Array.isArray(data.options) ? data.options : [],
-    sourceUrl: data.sourceUrl || ""
+    sourceUrl: data.sourceUrl || "",
+    quizId: data.quizId || payload?.quizId || "",
+    quizTitle: data.quizTitle || payload?.quizTitle || ""
   };
 }
 
@@ -423,12 +425,45 @@ async function publishListenResult(payload) {
 
 async function saveListenResultToHistory(questionData, result) {
   try {
+    const timestamp = Date.now();
+
+    // 1. Historial general (plano)
     const historyObj = await chrome.storage.local.get("solveHistory");
     let history = historyObj.solveHistory || [];
     history = history.filter((item) => item.question?.text !== questionData.text);
-    history.unshift({ id: questionData.id, timestamp: Date.now(), question: questionData, analysis: result });
+    history.unshift({ id: questionData.id, timestamp: timestamp, question: questionData, analysis: result });
     if (history.length > 30) history = history.slice(0, 30);
     await chrome.storage.local.set({ solveHistory: history });
+
+    // 2. Historial agrupado por Cuestionario
+    const quizId = questionData.quizId || "cuestionario-general";
+    const quizTitle = questionData.quizTitle || "Consultas Generales";
+
+    const sessionsObj = await chrome.storage.local.get("quizSessions");
+    let quizSessions = sessionsObj.quizSessions || {};
+
+    if (!quizSessions[quizId]) {
+      quizSessions[quizId] = {
+        quizId: quizId,
+        title: quizTitle,
+        startedAt: timestamp,
+        updatedAt: timestamp,
+        questions: []
+      };
+    }
+
+    let session = quizSessions[quizId];
+    session.updatedAt = timestamp;
+    session.questions = session.questions.filter(q => q.text !== questionData.text);
+    session.questions.push({
+      id: questionData.id,
+      text: questionData.text,
+      options: questionData.options,
+      analysis: result,
+      timestamp: timestamp
+    });
+
+    await chrome.storage.local.set({ quizSessions });
   } catch (error) {
     console.error("Error al guardar resultado rápido en historial:", error);
   }

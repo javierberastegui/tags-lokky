@@ -233,6 +233,17 @@
     }
   }
 
+  function getQuizTitle() {
+    const h1 = document.querySelector('h1, .quiz-title, #quiz_title, .title, .page-title');
+    return h1 ? h1.innerText.trim() : document.title.replace("Canvas", "").trim() || "Cuestionario Sin Título";
+  }
+
+  function getQuizId() {
+    const match = window.location.href.match(/\/quizzes\/(\d+)/);
+    if (match) return `quiz-${match[1]}`;
+    return `quiz-${window.location.host}-${document.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
+  }
+
   function buildListenPayload(selectedText, selectionRect) {
     const options = extractOptionsNearSelection(selectionRect);
     const optionText = options.length
@@ -243,7 +254,9 @@
       id: `listen-${Date.now()}`,
       text: `${selectedText}${optionText}`,
       options,
-      sourceUrl: window.location.href
+      sourceUrl: window.location.href,
+      quizId: getQuizId(),
+      quizTitle: getQuizTitle()
     };
   }
 
@@ -338,7 +351,14 @@
         try {
           await chrome.runtime.sendMessage({
             type: "ANALYZE_QUESTION",
-            data: { id: questionId, text: questionText, options, sourceUrl: window.location.href }
+            data: { 
+              id: questionId, 
+              text: questionText, 
+              options, 
+              sourceUrl: window.location.href,
+              quizId: getQuizId(),
+              quizTitle: getQuizTitle()
+            }
           });
 
           btn.innerHTML = `<span>Enviado al Panel</span>`;

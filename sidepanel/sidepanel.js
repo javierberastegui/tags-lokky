@@ -317,7 +317,10 @@ function setupHistoryControls() {
   document.getElementById("clearHistoryBtn").addEventListener("click", async () => {
     if (confirm("¿Estás seguro de que deseas borrar todo tu historial de estudio?")) {
       try {
-        await chrome.storage.local.set({ solveHistory: [] });
+        await Promise.all([
+          chrome.storage.local.set({ solveHistory: [] }),
+          chrome.storage.local.set({ quizSessions: {} })
+        ]);
         loadHistoryList();
       } catch (error) {
         console.error("Error al borrar historial:", error);
@@ -881,12 +884,15 @@ function displayAnalysisResult(questionData, result) {
 // --- HISTORIAL (STORAGE LOCAL) ---
 async function saveToHistory(questionData, result) {
   try {
+    const timestamp = Date.now();
+
+    // 1. Guardar en solveHistory general (compatibilidad)
     const historyObj = await chrome.storage.local.get("solveHistory");
     let history = historyObj.solveHistory || [];
     
     const historyItem = {
       id: questionData.id,
-      timestamp: Date.now(),
+      timestamp: timestamp,
       question: questionData,
       analysis: result
     };
@@ -897,8 +903,39 @@ async function saveToHistory(questionData, result) {
     if (history.length > 30) {
       history = history.slice(0, 30);
     }
-    
     await chrome.storage.local.set({ solveHistory: history });
+
+    // 2. Guardar agrupado por Cuestionario/Prueba (quizSessions)
+    const quizId = questionData.quizId || "cuestionario-general";
+    const quizTitle = questionData.quizTitle || "Consultas Generales";
+    
+    const sessionsObj = await chrome.storage.local.get("quizSessions");
+    let quizSessions = sessionsObj.quizSessions || {};
+    
+    if (!quizSessions[quizId]) {
+      quizSessions[quizId] = {
+        quizId: quizId,
+        title: quizTitle,
+        startedAt: timestamp,
+        updatedAt: timestamp,
+        questions: []
+      };
+    }
+    
+    let session = quizSessions[quizId];
+    session.updatedAt = timestamp;
+    
+    // Filtrar duplicados de la misma pregunta en la sesión
+    session.questions = session.questions.filter(q => q.text !== questionData.text);
+    session.questions.push({
+      id: questionData.id,
+      text: questionData.text,
+      options: questionData.options,
+      analysis: result,
+      timestamp: timestamp
+    });
+    
+    await chrome.storage.local.set({ quizSessions });
   } catch (error) {
     console.error("Error al guardar historial:", error);
   }
@@ -911,48 +948,177 @@ async function loadHistoryList() {
   historyList.innerHTML = "";
   
   try {
-    const historyObj = await chrome.storage.local.get("solveHistory");
-    const history = historyObj.solveHistory || [];
+    const data = await chrome.storage.local.get("quizSessions");
+    const sessions = data.quizSessions || {};
+    const sessionIds = Object.keys(sessions).sort((a, b) => sessions[b].updatedAt - sessions[a].updatedAt);
     
-    if (history.length === 0) {
+    if (sessionIds.length === 0) {
       emptyState.classList.remove("hidden");
       return;
     }
     
     emptyState.classList.add("hidden");
     
-    history.forEach((item) => {
-      const itemEl = document.createElement("div");
-      itemEl.className = "history-item";
+    sessionIds.forEach((quizId) => {
+      const session = sessions[quizId];
+      const cardEl = document.createElement("div");
+      cardEl.className = "history-session-card";
+      cardEl.id = `session-card-${quizId}`;
       
-      const dateStr = new Date(item.timestamp).toLocaleString("es-ES", {
+      const dateStr = new Date(session.updatedAt).toLocaleString("es-ES", {
         month: "short",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit"
       });
       
-      itemEl.innerHTML = `
-        <div class="history-item-header">
-          <span>${dateStr}</span>
-          <span>Confianza: ${item.analysis.confidence}%</span>
+      cardEl.innerHTML = `
+        <div class="session-card-header" id="header-${quizId}">
+          <div class="session-title">${escapeHtml(session.title)}</div>
+          <div class="session-date">Última actividad: ${dateStr}</div>
         </div>
-        <div class="history-item-question">${escapeHtml(item.question.text)}</div>
-        <div class="history-item-answer">Respuesta: ${escapeHtml(item.analysis.recommendedAnswer)}</div>
+        <div class="session-card-meta">
+          <span>${session.questions.length} preguntas resueltas</span>
+        </div>
+        <div class="session-actions">
+          <button class="btn btn-primary btn-sm btn-export-md" data-id="${quizId}">Exportar MD</button>
+          <button class="btn btn-secondary btn-sm btn-export-json" data-id="${quizId}">Exportar JSON</button>
+          <button class="btn btn-secondary btn-sm btn-delete-session" data-id="${quizId}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171;">Eliminar</button>
+        </div>
+        <div class="session-questions-list hidden" id="questions-list-${quizId}"></div>
       `;
       
-      itemEl.addEventListener("click", () => {
-        activeQuestionData = item.question;
-        renderQuestion(item.question);
-        displayAnalysisResult(item.question, item.analysis);
-        switchTab("solve");
+      // Lógica de colapsar/expandir al pulsar la cabecera
+      const header = cardEl.querySelector(`#header-${quizId}`);
+      const questionsListEl = cardEl.querySelector(`#questions-list-${quizId}`);
+      
+      header.addEventListener("click", () => {
+        const isCollapsed = questionsListEl.classList.contains("hidden");
+        // Colapsar los demás
+        document.querySelectorAll(".session-questions-list").forEach(el => el.classList.add("hidden"));
+        if (isCollapsed) {
+          questionsListEl.classList.remove("hidden");
+        }
       });
       
-      historyList.appendChild(itemEl);
+      // Rellenar las preguntas individuales dentro de la lista de la sesión
+      session.questions.forEach((q, idx) => {
+        const qItem = document.createElement("div");
+        qItem.className = "session-question-item";
+        qItem.innerHTML = `
+          <div class="session-question-title">${idx + 1}. ${escapeHtml(q.text)}</div>
+          <div class="session-question-answer">Sugerido: ${escapeHtml(q.analysis.recommendedAnswer)}</div>
+        `;
+        
+        // Al pulsar sobre una pregunta se carga en la pestaña de Resolver
+        qItem.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const questionData = {
+            id: q.id,
+            text: q.text,
+            options: q.options || [],
+            quizId: quizId,
+            quizTitle: session.title
+          };
+          activeQuestionData = questionData;
+          renderQuestion(questionData);
+          displayAnalysisResult(questionData, q.analysis);
+          switchTab("solve");
+        });
+        
+        questionsListEl.appendChild(qItem);
+      });
+      
+      // Vincular acciones de botones
+      cardEl.querySelector(".btn-export-md").addEventListener("click", (e) => {
+        e.stopPropagation();
+        exportSessionToMarkdown(session);
+      });
+      
+      cardEl.querySelector(".btn-export-json").addEventListener("click", (e) => {
+        e.stopPropagation();
+        exportSessionToJSON(session);
+      });
+      
+      cardEl.querySelector(".btn-delete-session").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (confirm(`¿Estás seguro de que deseas eliminar el historial de "${session.title}"?`)) {
+          const sessionsObj = await chrome.storage.local.get("quizSessions");
+          let currentSessions = sessionsObj.quizSessions || {};
+          delete currentSessions[quizId];
+          await chrome.storage.local.set({ quizSessions: currentSessions });
+          await loadHistoryList();
+        }
+      });
+      
+      historyList.appendChild(cardEl);
     });
   } catch (error) {
     console.error("Error al cargar lista del historial:", error);
   }
+}
+
+// Helpers para Exportación de Ficheros
+function exportSessionToMarkdown(session) {
+  let md = `# Cuestionario: ${session.title}\n`;
+  md += `- Fecha de inicio: ${new Date(session.startedAt).toLocaleString("es-ES")}\n`;
+  md += `- Último cambio: ${new Date(session.updatedAt).toLocaleString("es-ES")}\n`;
+  md += `- Total de preguntas resueltas: ${session.questions.length}\n\n`;
+  md += `---\n\n`;
+
+  session.questions.forEach((q, idx) => {
+    md += `## Pregunta ${idx + 1}\n`;
+    md += `${q.text}\n\n`;
+    
+    if (q.options && q.options.length > 0) {
+      md += `### Opciones:\n`;
+      const recommendedIdx = q.analysis.recommendedOptionIndex;
+      q.options.forEach((opt) => {
+        const letter = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[opt.index] || String(opt.index);
+        const isRec = opt.index === recommendedIdx;
+        md += `- [${isRec ? "x" : " "}] ${letter}. ${opt.text}${isRec ? " **(Recomendada)**" : ""}\n`;
+      });
+      md += `\n`;
+    }
+
+    md += `**Respuesta sugerida por la IA:** ${q.analysis.recommendedAnswer}\n\n`;
+    md += `**Nivel de confianza:** ${q.analysis.confidence}%\n\n`;
+    md += `**Explicación paso a paso:**\n${q.analysis.explanation}\n\n`;
+    
+    if (q.analysis.keyConcepts && q.analysis.keyConcepts.length > 0) {
+      md += `**Conceptos clave:**\n`;
+      q.analysis.keyConcepts.forEach((c) => {
+        md += `- ${c}\n`;
+      });
+      md += `\n`;
+    }
+    
+    md += `\n---\n\n`;
+  });
+
+  downloadFile(md, `${sanitizeFilename(session.title)}_report.md`, "text/markdown;charset=utf-8");
+}
+
+function exportSessionToJSON(session) {
+  const jsonStr = JSON.stringify(session, null, 2);
+  downloadFile(jsonStr, `${sanitizeFilename(session.title)}_report.json`, "application/json;charset=utf-8");
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function sanitizeFilename(name) {
+  return String(name || "test")
+    .replace(/[^a-z0-9]/gi, '_')
+    .toLowerCase()
+    .slice(0, 50);
 }
 
 // --- UTILS ---
