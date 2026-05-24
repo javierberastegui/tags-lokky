@@ -52,3 +52,31 @@
   color: #34d399;
   border-color: rgba(16, 185, 129, 0.25);
 }
+
+.shortcut-state-pill.error {
+  background: rgba(244, 63, 94, 0.12);
+  color: #fb7185;
+  border-color: rgba(244, 63, 94, 0.28);
+}
+
+.diagnostic-card {
+  margin-top: 14px;
+}
+
+.diagnostic-output {
+  width: 100%;
+  min-height: 220px;
+  max-height: 420px;
+  overflow: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: #d1d5db;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
