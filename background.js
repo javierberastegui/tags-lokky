@@ -187,6 +187,11 @@ function indexToLetter(index) {
   return Number.isInteger(index) && index >= 0 ? alphabet[index] || String(index) : "";
 }
 
+function cleanAnswerLetter(value) {
+  const match = String(value || "").trim().match(/^[A-D]$/i);
+  return match ? match[0].toUpperCase() : "";
+}
+
 function normalizeTextForMatch(value) {
   return String(value || "")
     .normalize("NFD")
@@ -204,6 +209,9 @@ function extractLetterFromAnswer(answer) {
 }
 
 function findOptionLetterFromAnswer(questionData, result) {
+  const aiLetter = cleanAnswerLetter(result?.answerLetter);
+  if (aiLetter) return aiLetter;
+
   const directLetter = indexToLetter(result?.recommendedOptionIndex);
   if (directLetter) return directLetter;
 
@@ -233,13 +241,13 @@ function buildPrompt(questionData, config) {
 
   if (questionData.options && questionData.options.length > 0) {
     prompt += "Opciones de respuesta disponibles:\n";
-    questionData.options.forEach((opt) => { prompt += `${opt.index}: ${opt.text}\n`; });
-    prompt += `\nInstrucciones adicionales:\n1. Selecciona la opción recomendada exacta en 'recommendedAnswer'.\n2. Indica el índice numérico correcto en 'recommendedOptionIndex'. Si no hay respuesta listada, devuelve -1.\n`;
+    questionData.options.forEach((opt) => { prompt += `${String.fromCharCode(65 + opt.index)}. ${opt.text}\n`; });
+    prompt += `\nInstrucciones adicionales:\n1. Devuelve la letra exacta de la opción correcta en 'answerLetter'. Solo puede ser A, B, C o D.\n2. Selecciona la opción recomendada exacta en 'recommendedAnswer'.\n3. Indica el índice numérico correcto en 'recommendedOptionIndex'. A=0, B=1, C=2, D=3.\n`;
   } else {
-    prompt += "\nInstrucciones adicionales:\n1. Resuelve la pregunta directamente en 'recommendedAnswer'.\n2. Pon 'recommendedOptionIndex' como -1.\n";
+    prompt += "\nInstrucciones adicionales:\n1. Si el texto incluye opciones A/B/C/D, devuelve la letra exacta en 'answerLetter'.\n2. Pon 'recommendedOptionIndex' como -1 si no puedes deducir índice.\n";
   }
 
-  prompt += `\n3. Explica de forma educativa y clara el porqué en 'explanation' (idioma: ${config.language}).\n4. Devuelve 2 o 3 conceptos clave en 'keyConcepts'.\n5. Asigna una confianza de 0 a 100 en 'confidence'.\n6. Devuelve JSON válido sin texto adicional.`;
+  prompt += `\n4. Explica de forma educativa y clara el porqué en 'explanation' (idioma: ${config.language}).\n5. Devuelve 2 o 3 conceptos clave en 'keyConcepts'.\n6. Asigna una confianza de 0 a 100 en 'confidence'.\n7. Devuelve JSON válido sin texto adicional.`;
   return prompt;
 }
 
@@ -261,6 +269,21 @@ async function analyzeQuestionData(questionData) {
   throw new Error("Modo de conexión no soportado o mal configurado.");
 }
 
+function getResponseSchema() {
+  return {
+    type: "OBJECT",
+    properties: {
+      answerLetter: { type: "STRING" },
+      recommendedAnswer: { type: "STRING" },
+      explanation: { type: "STRING" },
+      confidence: { type: "INTEGER" },
+      keyConcepts: { type: "ARRAY", items: { type: "STRING" } },
+      recommendedOptionIndex: { type: "INTEGER" }
+    },
+    required: ["answerLetter", "recommendedAnswer", "explanation", "confidence", "keyConcepts"]
+  };
+}
+
 async function callGemini(prompt, config) {
   if (!config.geminiKey) throw new Error("API Key de Gemini no configurada.");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent?key=${config.geminiKey}`;
@@ -271,17 +294,7 @@ async function callGemini(prompt, config) {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            recommendedAnswer: { type: "STRING" },
-            explanation: { type: "STRING" },
-            confidence: { type: "INTEGER" },
-            keyConcepts: { type: "ARRAY", items: { type: "STRING" } },
-            recommendedOptionIndex: { type: "INTEGER" }
-          },
-          required: ["recommendedAnswer", "explanation", "confidence", "keyConcepts"]
-        }
+        responseSchema: getResponseSchema()
       }
     })
   });
@@ -304,7 +317,7 @@ async function callOpenAI(prompt, apiKey, model, baseUrl) {
       model,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: "Eres un asistente de estudio. Devuelve estrictamente JSON válido con recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex." },
+        { role: "system", content: "Eres un asistente de estudio. Devuelve estrictamente JSON válido con answerLetter, recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex. answerLetter debe ser A, B, C, D o ?." },
         { role: "user", content: prompt }
       ]
     })
@@ -329,7 +342,7 @@ async function callClaude(prompt, config) {
     body: JSON.stringify({
       model: config.claudeModel,
       max_tokens: 1024,
-      system: "Devuelve estrictamente JSON válido con recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex.",
+      system: "Devuelve estrictamente JSON válido con answerLetter, recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex. answerLetter debe ser A, B, C, D o ?.",
       messages: [{ role: "user", content: prompt }]
     })
   });
@@ -352,7 +365,7 @@ async function callOllama(prompt, localUrl, model) {
       format: "json",
       stream: false,
       messages: [
-        { role: "system", content: "Devuelve estrictamente JSON válido con recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex." },
+        { role: "system", content: "Devuelve estrictamente JSON válido con answerLetter, recommendedAnswer, explanation, confidence, keyConcepts y recommendedOptionIndex. answerLetter debe ser A, B, C, D o ?." },
         { role: "user", content: prompt }
       ]
     })
@@ -381,7 +394,7 @@ async function handleListenSelection(message) {
   try {
     const questionData = normalizeQuestionData(message);
     const result = await analyzeQuestionData(questionData);
-    const answerLabel = findOptionLetterFromAnswer(questionData, result) || "?";
+    const answerLabel = findOptionLetterFromAnswer(questionData, result) || cleanAnswerLetter(result?.answerLetter) || "?";
 
     await saveAnalysisToHistory(questionData, result);
     await chrome.storage.session.set({ pendingAnalysis: { type: "analysis_result", questionData, result, timestamp: Date.now(), source: "listen_mode" } });
