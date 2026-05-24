@@ -80,27 +80,6 @@ getShortcutsConfig()
   .then((shortcuts) => saveShortcutsConfig(shortcuts))
   .catch((error) => console.error("Error al inicializar atajos:", error));
 
-// Atajo nativo de Chrome. Por defecto F8; configurable también desde chrome://extensions/shortcuts.
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== "toggle-listen-mode") return;
-
-  const shortcuts = await getShortcutsConfig();
-  const nextShortcuts = await saveShortcutsConfig({
-    listenModeEnabled: !shortcuts.listenModeEnabled
-  });
-
-  await notifyActiveTabShortcutsChanged(nextShortcuts);
-
-  try {
-    await chrome.runtime.sendMessage({
-      type: "SHORTCUTS_UPDATED",
-      shortcuts: nextShortcuts
-    });
-  } catch (error) {
-    // El sidepanel puede no estar abierto.
-  }
-});
-
 // Manejar los clics en el menú contextual
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "solve-selection" && tab) {
