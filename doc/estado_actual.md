@@ -9,6 +9,7 @@ Estado actual:
 - dominios operativos definidos en `doc/instrucciones/mapa_dominios.md`
 - reglas de uso autorizado y privacidad definidas
 - logs/relevos por dominio como sistema principal de continuidad
+- pantalla visible de conexiones nombrada como `Conexión` o `Conexiones`, no como `Ajustes`
 
 ## Dirección funcional
 La extensión debe ayudar a:
@@ -17,14 +18,13 @@ La extensión debe ayudar a:
 - recibir sugerencia razonada
 - mantener control manual del usuario
 
-
 ## Arquitectura objetivo inicial
 Superficies previstas:
 - `manifest.json` para permisos y declaración MV3
 - content script para extracción/inyección controlada
 - background service worker para coordinación
 - popup para interacción rápida
-- options para configuración de proveedor IA y preferencias
+- Conexiones para proveedor IA, credenciales y endpoints
 - servicios IA aislados
 - storage/config wrapper
 - eventos estructurados internos
@@ -37,15 +37,17 @@ Superficies previstas:
 - no acoplar notificaciones o logs sueltos por módulo
 - emitir eventos estructurados cuando aplique
 - documentar por dominio al cerrar cada etapa
+- no llamar `Ajustes` a la pantalla si solo contiene conexiones
 
 ## Pendiente inmediato recomendado
 Crear la base técnica mínima de extensión:
 1. `manifest.json`
 2. estructura `src/` separada por dominios
-3. popup/options mínimos
-4. content script de detección no invasiva
-5. background service worker
-6. capa de eventos estructurados
-7. capa storage/config sin secretos
-8. proveedor IA mock o placeholder seguro
-9. validación de carga manual en navegador
+3. popup mínimo
+4. pantalla Conexiones mínima
+5. content script de detección no invasiva
+6. background service worker
+7. capa de eventos estructurados
+8. capa storage/config sin secretos
+9. proveedor IA mock o placeholder seguro
+10. validación de carga manual en navegador
