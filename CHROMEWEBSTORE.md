@@ -8,7 +8,7 @@
 Canvas Study Partner
 
 **Short Description**  
-Asistente inteligente para estudiar y resolver cuestionarios de Canvas utilizando la API de Gemini.
+Asistente inteligente para estudiar y resolver cuestionarios de Canvas utilizando la APIs, agentes o modelos locales.
 
 **Detailed Description**  
 Canvas Study Partner es tu compañero de estudio definitivo para cuestionarios y exámenes de Canvas. Diseñado para optimizar tu aprendizaje en pruebas no evaluatorias, esta extensión te permite enviar preguntas directamente a la inteligencia artificial de Gemini para obtener respuestas recomendadas y explicaciones educativas estructuradas paso a paso.
