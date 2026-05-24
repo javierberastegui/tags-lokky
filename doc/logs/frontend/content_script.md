@@ -5,6 +5,21 @@ Registrar decisiones sobre lectura de página activa, extracción de preguntas/o
 
 ## Entradas
 
+### 2026-05-24 — Corrección de extracción y concatenación errónea de opciones
+- Contexto: El usuario reportó que las opciones extraídas en el Modo escucha aparecían concatenadas en una sola opción (ej. Artroplastia + Osteosíntesis...) y mezcladas con botones de la barra lateral de Canvas ("Calendario", "Chat").
+- Causa:
+  1. Los inputs de selección nativos en temas personalizados de Canvas New Quizzes a veces están ocultos con `opacity: 0` o tamaños `0x0`, lo cual hacía que `isVisibleElement` los descartara.
+  2. Al no detectar los inputs, el sistema usaba el fallback `document.querySelectorAll("label, li, div, button")`. Al incluir `"div"` de forma genérica, extraía el contenedor principal que tiene todas las opciones concatenadas en su interior, además de divs fuera del área del test (sidebar).
+  3. `getInputOptionText` usaba `closest("div")` directamente, lo que en ausencia de clases específicas podía emparejar con el contenedor padre general.
+- Objetivo: Garantizar la correcta identificación de opciones sin mezclas ni concatenaciones en cualquier tema y estructura.
+- Archivos tocados: `content/content.js`, `doc/logs/frontend/content_script.md`.
+- Decisiones tomadas:
+  - Flexibilizar `isVisibleElement` para que siempre retorne `true` si el elemento es un `INPUT` (ya que los inputs customizados suelen ocultarse por opacidad).
+  - Modificar `getInputOptionText` para que valide que el contenedor `.closest` seleccionado no contenga múltiples inputs (evitando emparejar agrupadores).
+  - Retirar `"div"` del query fallback de `extractOptionsFromVisibleRows` y reemplazarlo por elementos semánticos de opción (`[class*='option']`, `[class*='answer']`, `[role='radio']`, `[role='checkbox']`).
+- Validaciones ejecutadas: Inspección lógica del árbol DOM de cuestionarios y verificación del flujo.
+- Siguiente paso: Validar recargando en navegador.
+
 ### 2026-05-24 — Alta documental inicial
 - Contexto: la extensión necesitará un content script para detectar cuestionarios autorizados.
 - Objetivo: separar extracción DOM de proveedor IA, storage y popup.

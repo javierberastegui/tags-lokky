@@ -56,7 +56,13 @@
   function isVisibleElement(element) {
     if (!element) return false;
     const style = window.getComputedStyle(element);
-    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    const tagName = (element.tagName || "").toLowerCase();
+    if (tagName === "input") {
+      // Los inputs de selección a veces se ocultan con opacity: 0 o tamaños pequeños en temas personalizados
+      return true;
+    }
+    if (style.opacity === "0") return false;
     const rect = element.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
   }
@@ -81,9 +87,22 @@
     const closestLabelText = cleanOptionText(closestLabel?.innerText || closestLabel?.textContent || "");
     if (closestLabelText) return closestLabelText;
 
-    const optionContainer = input.closest('.answer, [class*="answer"], [class*="option"], li, div');
-    const optionText = cleanOptionText(optionContainer?.innerText || optionContainer?.textContent || "");
-    if (optionText) return optionText;
+    // Buscar el contenedor específico de la opción que no sea un agrupador de varias opciones
+    const selectors = ['.answer', '[class*="answer"]', '[class*="option"]', 'li', 'div'];
+    for (const selector of selectors) {
+      let current = input.parentElement;
+      while (current && current !== document.body) {
+        if (current.matches(selector)) {
+          // Verificar que no contenga otros inputs (evita concatenar texto de todas las opciones en contenedores agrupadores)
+          const childInputs = current.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+          if (childInputs.length <= 1) {
+            const optionText = cleanOptionText(current.innerText || current.textContent || "");
+            if (optionText) return optionText;
+          }
+        }
+        current = current.parentElement;
+      }
+    }
 
     return "";
   }
@@ -176,7 +195,7 @@
     if (options.length >= 2) return options.slice(0, 10);
 
     const centerY = selectionRect ? selectionRect.bottom : 0;
-    const textBlocks = Array.from(document.querySelectorAll("label, li, div, button"))
+    const textBlocks = Array.from(document.querySelectorAll("label, li, button, [class*='option'], [class*='answer'], [role='radio'], [role='checkbox']"))
       .filter(isVisibleElement)
       .map((el) => ({ el, rect: el.getBoundingClientRect(), text: cleanOptionText(el.innerText || el.textContent || "") }))
       .filter((item) => item.text && item.text.length <= 250 && item.rect.top >= centerY - 20 && item.rect.top <= centerY + 520)
