@@ -5,6 +5,22 @@ Registrar decisiones sobre la pestaña Atajos, teclas programables y acciones r�
 
 ## Entradas
 
+### 2026-05-24 — Panel de diagnóstico para Modo escucha
+- Contexto: el usuario pide un diagnóstico visible para poder copiar el estado real cuando el icono no muestre `A/B/C/D` o el panel no reciba la pregunta.
+- Objetivo: añadir un bloque de diagnóstico en la pestaña Atajos sin depender de consola ni service worker.
+- Archivos tocados: `sidepanel/sidepanel.html`, `sidepanel/shortcuts.js`, `sidepanel/shortcuts.css`, `doc/logs/frontend/atajos.md`.
+- Decisiones tomadas:
+  - Se añade una tarjeta `Diagnóstico Modo escucha` dentro de Atajos.
+  - Se añaden botones `Actualizar diagnóstico` y `Copiar diagnóstico`.
+  - El diagnóstico muestra `shortcuts`, configuración sin secretos, `lastError`, `listenResultInbox`, `pendingAnalysis`, último elemento del historial y estado visible del panel.
+  - Los secretos se redactan como `[REDACTED:n chars]`.
+  - El diagnóstico usa también el último historial para que los datos no desaparezcan si la bandeja `listenResultInbox` ya fue consumida.
+- Mensajería revisada: `LISTEN_RESULT_READY`, `SHORTCUTS_UPDATED` y cambios de `chrome.storage.local/session`.
+- Datos tratados: estado de atajos, modo de conexión, pregunta detectada, opciones detectadas, respuesta rápida, último error y último historial.
+- Permisos afectados: sin permisos nuevos.
+- Validaciones ejecutadas: revisión de flujo y commits aplicados; pendiente prueba manual real en Chrome.
+- Siguiente paso: recargar extensión, reproducir fallo, abrir Atajos, pulsar `Actualizar diagnóstico`, copiar JSON y revisarlo.
+
 ### 2026-05-24 — Reparación de llegada de Modo escucha al panel
 - Contexto: el usuario reporta que las preguntas/respuestas del Modo escucha no llegan al panel.
 - Causa detectada: `sidepanel.js` consume y elimina `pendingAnalysis` al abrir el panel, pero solo entiende el flujo antiguo `free_text`. Eso hacía que los resultados `listen_quick_result` pudieran descartarse antes de ser pintados.
