@@ -12,17 +12,11 @@ Estado actual:
 
 ## Dirección funcional
 La extensión debe ayudar a:
-- detectar preguntas y opciones en una página activa autorizada
+- detectar preguntas y opciones en una página activa
 - enviar contexto mínimo a una capa IA configurada
 - recibir sugerencia razonada
-- mostrar explicación y respuesta sugerida al usuario
 - mantener control manual del usuario
 
-La extensión no debe orientarse a:
-- trampas en exámenes o evaluaciones no autorizadas
-- evasión de supervisión
-- autoenvío de cuestionarios sensibles
-- captura masiva o innecesaria de datos
 
 ## Arquitectura objetivo inicial
 Superficies previstas:
