@@ -5,6 +5,14 @@ Registrar decisiones sobre la pantalla de Conexión/Conexiones: proveedor IA, cr
 
 ## Entradas
 
+### 2026-05-24 — Autocompletado de URL para Hermes
+- Contexto: Al configurar Hermes en la pestaña de Conexiones, se requiere que el usuario ingrese la URL del gateway local (`http://127.0.0.1:9119`).
+- Objetivo: Facilitar la configuración mediante el autocompletado automático al seleccionar el proveedor Hermes.
+- Archivos tocados: `sidepanel/sidepanel.js`, `doc/logs/frontend/conexiones.md`.
+- Decisiones tomadas: Añadir un listener de cambio a `#gatewayProviderSelect` que configure `#gatewayUrlInput` con `http://127.0.0.1:9119` cuando el valor seleccionado sea `"hermes"`.
+- Validaciones ejecutadas: Comprobación del cambio del dropdown y autocompletado en el archivo fuente.
+- Siguiente paso: Validar recargando la extensión.
+
 ### 2026-05-24 — Corrección visible en sidepanel
 - Contexto: aunque la documentación ya usaba `conexiones`, la UI real de la extensión seguía mostrando la pestaña como `Ajustes`.
 - Objetivo: corregir el texto visible del sidepanel para que coincida con la decisión funcional del proyecto.

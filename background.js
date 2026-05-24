@@ -239,7 +239,11 @@ async function resolveAnswerLetter(questionData) {
   } else if (config.connectionMode === "api" && config.apiProvider === "claude") {
     rawAnswer = await callClaudeLetter(prompt, config);
   } else if (config.connectionMode === "gateway") {
-    rawAnswer = await callOpenAILetter(prompt, config.gatewayToken, config.gatewayModel, config.gatewayUrl);
+    if (config.gatewayProvider === "hermes") {
+      rawAnswer = await callHermesLocalLetter(prompt, config.gatewayUrl);
+    } else {
+      rawAnswer = await callOpenAILetter(prompt, config.gatewayToken, config.gatewayModel, config.gatewayUrl);
+    }
   } else if (config.connectionMode === "local") {
     rawAnswer = await callOllamaLetter(prompt, config.localUrl, config.localModel);
   } else {
@@ -247,6 +251,33 @@ async function resolveAnswerLetter(questionData) {
   }
 
   return extractLetterFromText(rawAnswer) || findLetterByOptionText(questionData, rawAnswer) || "?";
+}
+
+async function callHermesLocalLetter(prompt, url) {
+  const cleanUrl = String(url || "").replace(/\/+$/, "");
+  const endpoint = `${cleanUrl}/api/companion/chat`;
+  
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: prompt
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Error en Hermes local: HTTP ${response.status} - ${text}`);
+  }
+
+  const data = await response.json();
+  if (!data.ok || !data.response) {
+    throw new Error(`Hermes respondió con error o vacío: ${JSON.stringify(data)}`);
+  }
+
+  return data.response;
 }
 
 async function callGeminiLetter(prompt, config) {

@@ -5,6 +5,17 @@ Registrar decisiones sobre la pestaña Atajos, teclas programables y acciones r�
 
 ## Entradas
 
+### 2026-05-24 — Corrección del error de exclamación en Modo escucha bajo Hermes
+- Contexto: Al usar el Modo escucha con la conexión configurada en el Gateway de Hermes local, la resolución de respuesta corta (`resolveAnswerLetter` en `background.js`) fallaba porque intentaba usar la interfaz genérica de OpenAI en el puerto de Hermes, causando un error de conexión (HTTP 404) y mostrando un signo de exclamación (`!`) en la insignia del icono.
+- Objetivo: Evitar el error de conexión y el badge de exclamación resolviendo correctamente las llamadas rápidas a través de la API específica de Hermes local en segundo plano.
+- Archivos tocados: `background.js`, `doc/logs/frontend/atajos.md`.
+- Decisiones tomadas:
+  - Implementar la función `callHermesLocalLetter(prompt, url)` en `background.js` para comunicarse con la API de Hermes.
+  - Actualizar `resolveAnswerLetter` para usar `callHermesLocalLetter` si el modo de conexión es `gateway` y el proveedor es `hermes`.
+- Mensajería revisada: `LISTEN_SELECTION`.
+- Validaciones ejecutadas: Comprobación de la firma de la petición a Hermes local y su correcta integración.
+- Siguiente paso: Recargar la extensión en `chrome://extensions` y comprobar el Modo escucha con Hermes activo.
+
 ### 2026-05-24 — Panel de diagnóstico para Modo escucha
 - Contexto: el usuario pide un diagnóstico visible para poder copiar el estado real cuando el icono no muestre `A/B/C/D` o el panel no reciba la pregunta.
 - Objetivo: añadir un bloque de diagnóstico en la pestaña Atajos sin depender de consola ni service worker.

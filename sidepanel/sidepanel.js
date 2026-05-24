@@ -11,7 +11,7 @@ let config = {
   claudeModel: "claude-3-5-sonnet-latest",
   // Gateway
   gatewayProvider: "hermes",
-  gatewayUrl: "https://api.hermes-gateway.com/v1",
+  gatewayUrl: "http://127.0.0.1:9119",
   gatewayToken: "",
   gatewayModel: "hermes-agent-v1",
   // Local (Ollama)
@@ -173,6 +173,14 @@ function setupSettingsForm() {
   });
 
   document.getElementById("apiProviderSelect").addEventListener("change", updateApiFields);
+
+  document.getElementById("gatewayProviderSelect").addEventListener("change", () => {
+    const provider = document.getElementById("gatewayProviderSelect").value;
+    const urlInput = document.getElementById("gatewayUrlInput");
+    if (provider === "hermes") {
+      urlInput.value = "http://127.0.0.1:9119";
+    }
+  });
 
   // Mostrar/Ocultar contraseñas
   setupPasswordToggle("togglePasswordBtn", "apiKeyInput");
@@ -564,16 +572,58 @@ Pregunta:
       return callClaude(prompt);
     }
   } else if (mode === "gateway") {
-    // Los gateways de Hermes y OpenClaw usualmente emulan la API de OpenAI
     const url = config.gatewayUrl;
     const token = config.gatewayToken;
     const model = config.gatewayModel;
-    return callOpenAI(prompt, token, model, url);
+    if (config.gatewayProvider === "hermes") {
+      return callHermesLocal(prompt, url);
+    } else {
+      return callOpenAI(prompt, token, model, url);
+    }
   } else if (mode === "local") {
     return callOllama(prompt, config.localUrl, config.localModel);
   }
   
   throw new Error("Modo de conexión no soportado o mal configurado.");
+}
+
+// Cliente Hermes Local (Usa la API de companion/chat expuesta en el puerto 9119)
+async function callHermesLocal(prompt, url) {
+  const cleanUrl = url.replace(/\/+$/, "");
+  const endpoint = `${cleanUrl}/api/companion/chat`;
+  
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: prompt
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Error en Hermes local: HTTP ${response.status} - ${text}`);
+  }
+
+  const data = await response.json();
+  if (!data.ok || !data.response) {
+    throw new Error(`Hermes respondió con error o vacío: ${JSON.stringify(data)}`);
+  }
+  
+  const rawText = data.response;
+  
+  // Limpiar bloques de código Markdown que el agente pueda añadir a su respuesta de texto
+  const jsonStartIndex = rawText.indexOf("{");
+  const jsonEndIndex = rawText.lastIndexOf("}");
+  
+  if (jsonStartIndex === -1 || jsonEndIndex === -1) {
+    throw new Error("Hermes no devolvió un bloque JSON estructurado.");
+  }
+  
+  const cleanJson = rawText.substring(jsonStartIndex, jsonEndIndex + 1);
+  return JSON.parse(cleanJson);
 }
 
 // Cliente Google Gemini (Usa Response Schema estructurado de fábrica)
