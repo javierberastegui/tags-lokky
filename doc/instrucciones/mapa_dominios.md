@@ -10,6 +10,7 @@ Su objetivo es permitir continuidad con órdenes breves como:
 - “sigue con IA”
 - “sigue con eventos”
 - “sigue con storage”
+- “sigue con conexiones”
 
 ## Regla de uso
 Cuando el usuario use un nombre natural, el agente debe resolver aquí el dominio antes de seguir.
@@ -38,11 +39,11 @@ Después debe leer:
 - relevo principal: `doc/logs/relevos/frontend/popup.md`
 - logs esperados: `doc/logs/frontend/popup.md`
 
-### options / configuración
-- alias: `options`, `opciones`, `configuración`, `settings`, `ajustes`, `api key`, `clave ia`
-- relevo principal: `doc/logs/relevos/frontend/options.md`
-- logs esperados: `doc/logs/frontend/options.md`
-- nota: nunca documentar ni guardar claves reales en repo.
+### conexiones
+- alias: `conexión`, `conexion`, `conexiones`, `coneccion`, `conecciones`, `proveedor`, `api key`, `clave ia`, `endpoint`, `options`, `opciones`, `settings`
+- relevo principal: `doc/logs/relevos/frontend/conexiones.md`
+- logs esperados: `doc/logs/frontend/conexiones.md`
+- nota: el nombre visible debe ser `Conexión` o `Conexiones`; `options` queda solo como término técnico interno de extensión. Nunca documentar ni guardar claves reales en repo.
 
 ### proveedor IA / prompts
 - alias: `ia`, `ai`, `proveedor ia`, `provider`, `openai`, `gemini`, `ollama`, `prompt`, `prompts`, `resolver cuestionario`, `sugerir respuesta`
@@ -75,6 +76,7 @@ Después debe leer:
 - “sigue con popup” → relevo `doc/logs/relevos/frontend/popup.md` + log `doc/logs/frontend/popup.md`
 - “sigue con permisos” → relevo `doc/logs/relevos/compartidos/manifest_permisos.md` + log `doc/logs/backend_modulos/manifest_permisos.md`
 - “sigue con eventos” → relevo `doc/logs/relevos/compartidos/eventos.md` + log `doc/logs/backend_modulos/eventos.md`
+- “sigue con conexiones” → relevo `doc/logs/relevos/frontend/conexiones.md` + log `doc/logs/frontend/conexiones.md`
 
 ## Regla para dominios nuevos
 Si aparece un módulo, superficie o dominio nuevo que el usuario pueda invocar por nombre natural, el agente debe añadir aquí su alias y sus rutas documentales mínimas.
