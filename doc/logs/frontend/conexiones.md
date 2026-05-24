@@ -5,6 +5,17 @@ Registrar decisiones sobre la pantalla de Conexión/Conexiones: proveedor IA, cr
 
 ## Entradas
 
+### 2026-05-24 — Corrección visible en sidepanel
+- Contexto: aunque la documentación ya usaba `conexiones`, la UI real de la extensión seguía mostrando la pestaña como `Ajustes`.
+- Objetivo: corregir el texto visible del sidepanel para que coincida con la decisión funcional del proyecto.
+- Archivos tocados: `sidepanel/sidepanel.html`, `doc/logs/frontend/conexiones.md`.
+- Decisiones tomadas: la pestaña visible pasa a `Conexiones`; el título interno pasa a `Conexiones`; el botón pasa a `Guardar Conexión`; el toast pasa a `Conexión guardada con éxito`.
+- Eventos estructurados revisados/emitidos: no aplica, cambio visual de texto.
+- Datos visibles/capturados: sin cambios.
+- Validaciones ejecutadas: revisión documental y cambio directo en HTML.
+- Incidencias detectadas: queda pendiente recargar la extensión en `chrome://extensions` para ver el cambio en navegador.
+- Siguiente paso: pulsar `Actualizar` en `chrome://extensions` o quitar/cargar de nuevo la extensión descomprimida.
+
 ### 2026-05-24 — Renombrado de options/ajustes a conexiones
 - Contexto: el usuario aclara que la pantalla no debe llamarse “ajustes” porque solo contiene conexiones.
 - Objetivo: dejar el dominio funcional con el nombre correcto: `conexiones`.
