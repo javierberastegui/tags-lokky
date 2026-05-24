@@ -65,9 +65,22 @@ function createActionIcon(isListening, size, letterToShow = "") {
   ctx.fillStyle = "#383838";
   ctx.fillRect(0, 0, size, size);
 
+  if (letterToShow === "...") {
+    // Tres puntos de pensando horizontales de color #302f2f
+    ctx.fillStyle = "#302f2f";
+    const space = size * 0.22;
+    const radius = size * 0.075;
+    ctx.beginPath();
+    ctx.arc(size / 2 - space, size / 2, radius, 0, Math.PI * 2);
+    ctx.arc(size / 2, size / 2, radius, 0, Math.PI * 2);
+    ctx.arc(size / 2 + space, size / 2, radius, 0, Math.PI * 2);
+    ctx.fill();
+    return ctx.getImageData(0, 0, size, size);
+  }
+
   if (letterToShow && letterToShow !== "") {
-    // Si hay una respuesta o estado temporal, se dibuja la letra en color #383838
-    ctx.fillStyle = "#383838";
+    // Si hay una respuesta o estado temporal, se dibuja la letra en color #302f2f
+    ctx.fillStyle = "#302f2f";
     ctx.font = `bold ${Math.floor(size * 0.7)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -76,8 +89,8 @@ function createActionIcon(isListening, size, letterToShow = "") {
   }
 
   if (isListening) {
-    // Modo escucha activo: un punto en el centro de color #383838
-    ctx.fillStyle = "#383838";
+    // Modo escucha activo: un punto en el centro de color #302f2f
+    ctx.fillStyle = "#302f2f";
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size * 0.22, 0, Math.PI * 2);
     ctx.fill();

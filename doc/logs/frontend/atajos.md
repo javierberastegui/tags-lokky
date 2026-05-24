@@ -11,9 +11,10 @@ Registrar decisiones sobre la pestaña Atajos, teclas programables y acciones r�
 - Archivos tocados: `background.js`, `doc/logs/frontend/atajos.md`.
 - Decisiones tomadas:
   - Cambiar el fondo del icono dynamic canvas para que siempre sea de color `#383838`.
-  - El Modo escucha activo se representa como un punto en el centro de color `#383838`.
-  - Al recibir una respuesta (letra), esta se dibuja en el centro del icono en color `#383838` en lugar del badge de Chrome.
-  - La letra se muestra durante exactamente 1 segundo (1000ms) y luego el icono vuelve automáticamente al punto `#383838` en el centro.
+  - El Modo escucha activo se representa como un punto en el centro de color `#302f2f`.
+  - Al recibir una respuesta (letra), esta se dibuja en el centro del icono en color `#302f2f` en lugar del badge de Chrome.
+  - La letra se muestra durante exactamente 1 segundo (1000ms) y luego el icono vuelve automáticamente al punto `#302f2f` en el centro.
+  - Al estar pensando, se dibujan tres puntos horizontales en color `#302f2f` en el centro del icono.
   - Se deshabilita el texto del badge de Chrome (`setBadgeText("")`) para evitar superposiciones de colores y marcos.
 - Validaciones ejecutadas: Comprobación visual lógica y recarga de funciones canvas.
 - Siguiente paso: Validar recargando en el navegador y probando el flujo.
