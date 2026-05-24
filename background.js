@@ -38,6 +38,13 @@ async function saveShortcutsConfig(nextConfig) {
   return shortcuts;
 }
 
+async function resetListenModeOnBoot() {
+  const current = await getShortcutsConfig();
+  const shortcuts = { ...current, listenModeEnabled: false };
+  await chrome.storage.local.set({ shortcuts });
+  await updateActionIcon(false);
+}
+
 async function getAppConfig() {
   const saved = await chrome.storage.local.get("config");
   return { ...DEFAULT_CONFIG, ...(saved.config || {}) };
@@ -87,7 +94,9 @@ async function updateActionIcon(isListening) {
     });
   } catch (error) {
     await chrome.action.setBadgeText({ text: isListening ? "●" : "" });
-    if (isListening) await chrome.action.setBadgeBackgroundColor({ color: "#10b981" });
+    if (isListening) {
+      await chrome.action.setBadgeBackgroundColor({ color: "#10b981" });
+    }
   }
 
   await chrome.action.setTitle({
@@ -129,10 +138,16 @@ async function setPendingAnalysisFromSelection(selectedText, tab, source) {
     }
   });
 
-  if (tab.windowId !== undefined) await chrome.sidePanel.open({ windowId: tab.windowId });
+  if (tab.windowId !== undefined) {
+    await chrome.sidePanel.open({ windowId: tab.windowId });
+  }
 
   try {
-    await chrome.runtime.sendMessage({ type: "ANALYZE_TEXT", text: cleanText, source: source || "selection" });
+    await chrome.runtime.sendMessage({
+      type: "ANALYZE_TEXT",
+      text: cleanText,
+      source: source || "selection"
+    });
   } catch (err) {
     console.log("El panel lateral aún no está escuchando. Datos guardados en almacenamiento de sesión.");
   }
@@ -337,10 +352,14 @@ async function toggleListenMode() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({ id: "solve-selection", title: "Analizar con Gemini", contexts: ["selection"] });
-  const shortcuts = await getShortcutsConfig();
-  await saveShortcutsConfig(shortcuts);
-  console.log("Menú contextual 'Analizar con Gemini' registrado con éxito.");
+  await resetListenModeOnBoot();
+  console.log("Menú contextual registrado y Modo escucha iniciado apagado.");
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  resetListenModeOnBoot().catch((error) => console.error("Error al apagar Modo escucha en startup:", error));
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
@@ -348,9 +367,8 @@ chrome.commands.onCommand.addListener(async (command) => {
   await toggleListenMode();
 });
 
-getShortcutsConfig()
-  .then((shortcuts) => saveShortcutsConfig(shortcuts))
-  .catch((error) => console.error("Error al inicializar atajos:", error));
+resetListenModeOnBoot()
+  .catch((error) => console.error("Error al inicializar Modo escucha apagado:", error));
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "solve-selection" && tab) {
