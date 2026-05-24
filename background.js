@@ -51,7 +51,7 @@ async function getAppConfig() {
   return { ...DEFAULT_CONFIG, ...(saved.config || {}) };
 }
 
-function createActionIcon(isListening, size, answerLabel = "") {
+function createActionIcon(isListening, size) {
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, size, size);
@@ -68,25 +68,10 @@ function createActionIcon(isListening, size, answerLabel = "") {
     ctx.arc(size / 2, size / 2, size * 0.34, 0, Math.PI * 2);
     ctx.stroke();
 
-    const cleanAnswer = String(answerLabel || "").trim().slice(0, 2).toUpperCase();
-
-    if (cleanAnswer) {
-      ctx.fillStyle = "#ffffff";
-      ctx.font = `900 ${Math.floor(size * 0.58)}px system-ui, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(cleanAnswer, size / 2, size / 2 + 1);
-
-      ctx.fillStyle = "#ef4444";
-      ctx.beginPath();
-      ctx.arc(size * 0.78, size * 0.24, size * 0.1, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      ctx.fillStyle = "#ef4444";
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size * 0.16, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.fillStyle = "#ef4444";
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.16, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     ctx.fillStyle = "#4b5563";
     ctx.fillRect(0, 0, size, size);
@@ -100,28 +85,41 @@ function createActionIcon(isListening, size, answerLabel = "") {
   return ctx.getImageData(0, 0, size, size);
 }
 
-async function updateActionIcon(isListening, answerLabel = "") {
-  const cleanAnswer = String(answerLabel || "").trim().slice(0, 2).toUpperCase();
+async function setActionBadge(text, color = "#10b981") {
+  const cleanText = String(text || "").trim().slice(0, 4).toUpperCase();
+  await chrome.action.setBadgeText({ text: cleanText });
+  if (cleanText) {
+    await chrome.action.setBadgeBackgroundColor({ color });
+    await chrome.action.setBadgeTextColor({ color: "#ffffff" }).catch(() => {});
+  }
+}
+
+async function updateActionIcon(isListening, badgeText = "") {
+  const cleanBadge = String(badgeText || "").trim().slice(0, 4).toUpperCase();
 
   try {
     await chrome.action.setIcon({
       imageData: {
-        16: createActionIcon(isListening, 16, cleanAnswer),
-        32: createActionIcon(isListening, 32, cleanAnswer)
+        16: createActionIcon(isListening, 16),
+        32: createActionIcon(isListening, 32)
       }
     });
-    await chrome.action.setBadgeText({ text: "" });
   } catch (error) {
-    await chrome.action.setBadgeText({ text: isListening ? (cleanAnswer || "●") : "" });
-    if (isListening) {
-      await chrome.action.setBadgeBackgroundColor({ color: "#10b981" });
-    }
+    // Si falla el icono dinámico, el badge sigue dando estado visible.
+  }
+
+  if (!isListening) {
+    await setActionBadge("");
+  } else if (cleanBadge) {
+    await setActionBadge(cleanBadge, cleanBadge === "!" ? "#ef4444" : "#10b981");
+  } else {
+    await setActionBadge("");
   }
 
   await chrome.action.setTitle({
     title: isListening
-      ? cleanAnswer
-        ? `Canvas Study — Respuesta sugerida: ${cleanAnswer}`
+      ? cleanBadge
+        ? `Canvas Study — Respuesta sugerida: ${cleanBadge}`
         : "Canvas Study — Modo escucha activo"
       : "Canvas Study"
   });
@@ -209,6 +207,11 @@ function normalizeQuestionData(payload) {
 function indexToLetter(index) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   return Number.isInteger(index) && index >= 0 ? alphabet[index] || String(index) : "";
+}
+
+function extractLetterFromAnswer(answer) {
+  const match = String(answer || "").match(/\b([A-D])\b/i);
+  return match ? match[1].toUpperCase() : "";
 }
 
 function buildPrompt(questionData, config) {
@@ -359,16 +362,23 @@ async function saveAnalysisToHistory(questionData, result) {
 }
 
 async function handleListenSelection(message) {
-  const questionData = normalizeQuestionData(message);
-  const result = await analyzeQuestionData(questionData);
-  const answerLetter = indexToLetter(result.recommendedOptionIndex);
-  const answerLabel = answerLetter || String(result.recommendedAnswer || "").trim().slice(0, 2).toUpperCase();
+  await updateActionIcon(true, "...");
 
-  await saveAnalysisToHistory(questionData, result);
-  await chrome.storage.session.set({ pendingAnalysis: { type: "analysis_result", questionData, result, timestamp: Date.now(), source: "listen_mode" } });
-  await updateActionIcon(true, answerLabel);
+  try {
+    const questionData = normalizeQuestionData(message);
+    const result = await analyzeQuestionData(questionData);
+    const answerLetter = indexToLetter(result.recommendedOptionIndex) || extractLetterFromAnswer(result.recommendedAnswer);
+    const answerLabel = answerLetter || String(result.recommendedAnswer || "OK").trim().slice(0, 2).toUpperCase();
 
-  return { success: true, questionData, result, iconAnswer: answerLabel };
+    await saveAnalysisToHistory(questionData, result);
+    await chrome.storage.session.set({ pendingAnalysis: { type: "analysis_result", questionData, result, timestamp: Date.now(), source: "listen_mode" } });
+    await updateActionIcon(true, answerLabel);
+
+    return { success: true, questionData, result, iconAnswer: answerLabel };
+  } catch (error) {
+    await updateActionIcon(true, "!");
+    throw error;
+  }
 }
 
 async function toggleListenMode() {
