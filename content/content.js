@@ -2,6 +2,124 @@
 (function() {
   console.log("Canvas Study Partner: Script de contenido cargado.");
 
+  const DEFAULT_SHORTCUTS = {
+    listenModeEnabled: false,
+    listenModeShortcut: "F8"
+  };
+
+  let shortcuts = { ...DEFAULT_SHORTCUTS };
+  let lastListenSelection = "";
+  let listenSelectionTimer = null;
+
+  async function loadShortcutsConfig() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "GET_SHORTCUTS" });
+      if (response && response.success && response.shortcuts) {
+        shortcuts = { ...DEFAULT_SHORTCUTS, ...response.shortcuts };
+      }
+    } catch (error) {
+      console.warn("No se pudo cargar la configuración de atajos:", error.message);
+    }
+  }
+
+  function normalizeShortcutKey(value) {
+    return String(value || "F8").trim().toUpperCase();
+  }
+
+  function isEditableTarget(target) {
+    if (!target) return false;
+    const tagName = (target.tagName || "").toLowerCase();
+    return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
+  }
+
+  function getSelectionText() {
+    const selection = window.getSelection();
+    if (!selection) return "";
+    return selection.toString().trim();
+  }
+
+  async function toggleListenModeFromPage() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "TOGGLE_LISTEN_MODE" });
+      if (response && response.success && response.shortcuts) {
+        shortcuts = { ...DEFAULT_SHORTCUTS, ...response.shortcuts };
+        showListenModeFeedback(shortcuts.listenModeEnabled);
+      }
+    } catch (error) {
+      console.warn("No se pudo alternar el modo escucha:", error.message);
+    }
+  }
+
+  function showListenModeFeedback(isEnabled) {
+    const old = document.getElementById("lokky-listen-mode-feedback");
+    if (old) old.remove();
+
+    const badge = document.createElement("div");
+    badge.id = "lokky-listen-mode-feedback";
+    badge.textContent = isEnabled ? "Modo escucha activado" : "Modo escucha desactivado";
+    badge.style.position = "fixed";
+    badge.style.right = "18px";
+    badge.style.bottom = "18px";
+    badge.style.zIndex = "2147483647";
+    badge.style.padding = "10px 14px";
+    badge.style.borderRadius = "10px";
+    badge.style.background = isEnabled ? "rgba(16, 185, 129, 0.95)" : "rgba(244, 63, 94, 0.95)";
+    badge.style.color = "#ffffff";
+    badge.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    badge.style.fontSize = "13px";
+    badge.style.fontWeight = "700";
+    badge.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35)";
+    badge.style.pointerEvents = "none";
+    document.documentElement.appendChild(badge);
+
+    setTimeout(() => badge.remove(), 1400);
+  }
+
+  function scheduleListenSelectionSend() {
+    if (!shortcuts.listenModeEnabled) return;
+
+    if (listenSelectionTimer) {
+      clearTimeout(listenSelectionTimer);
+    }
+
+    listenSelectionTimer = setTimeout(async () => {
+      const selectedText = getSelectionText();
+      if (!selectedText || selectedText.length < 2) return;
+      if (selectedText === lastListenSelection) return;
+
+      lastListenSelection = selectedText;
+
+      try {
+        await chrome.runtime.sendMessage({
+          type: "LISTEN_SELECTION",
+          text: selectedText
+        });
+      } catch (error) {
+        console.warn("No se pudo enviar la selección en modo escucha:", error.message);
+      }
+    }, 220);
+  }
+
+  function setupListenModeListeners() {
+    document.addEventListener("mouseup", scheduleListenSelectionSend, true);
+    document.addEventListener("keyup", scheduleListenSelectionSend, true);
+
+    document.addEventListener("keydown", (event) => {
+      const configuredShortcut = normalizeShortcutKey(shortcuts.listenModeShortcut);
+      const pressedKey = normalizeShortcutKey(event.key);
+
+      if (isEditableTarget(event.target) && pressedKey !== "F8") {
+        return;
+      }
+
+      if (pressedKey === configuredShortcut) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleListenModeFromPage();
+      }
+    }, true);
+  }
+
   // Función principal para escanear e inyectar botones en las preguntas
   function scanAndInject() {
     // Canvas Classic Quizzes utiliza .question.display_question
@@ -114,15 +232,21 @@
     });
   }
 
-  // Escuchar mensajes desde el panel lateral (p. ej. para auto-seleccionar una opción)
+  // Escuchar mensajes desde el panel lateral/background.
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "SHORTCUTS_UPDATED") {
+      shortcuts = { ...DEFAULT_SHORTCUTS, ...(message.shortcuts || {}) };
+      sendResponse({ success: true });
+      return true;
+    }
+
     if (message.type === "SELECT_OPTION") {
       const { questionId, optionId, optionIndex } = message;
       
       const questionEl = document.getElementById(questionId);
       if (!questionEl) {
         sendResponse({ success: false, error: "Contenedor de pregunta no encontrado en el DOM" });
-        return;
+        return true;
       }
 
       let inputEl = null;
@@ -166,7 +290,10 @@
   });
 
   // Ejecución inicial y escaneo periódico para manejar reactividad y páginas dinámicas
-  scanAndInject();
-  setInterval(scanAndInject, 1500);
+  loadShortcutsConfig().finally(() => {
+    setupListenModeListeners();
+    scanAndInject();
+    setInterval(scanAndInject, 1500);
+  });
 
 })();
