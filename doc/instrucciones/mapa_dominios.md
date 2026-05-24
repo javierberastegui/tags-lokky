@@ -11,6 +11,7 @@ Su objetivo es permitir continuidad con órdenes breves como:
 - “sigue con eventos”
 - “sigue con storage”
 - “sigue con conexiones”
+- “sigue con atajos”
 
 ## Regla de uso
 Cuando el usuario use un nombre natural, el agente debe resolver aquí el dominio antes de seguir.
@@ -29,7 +30,7 @@ Después debe leer:
 - nota: cualquier permiso nuevo debe justificarse y documentarse.
 
 ### content script / extracción
-- alias: `content script`, `content scripts`, `extractor`, `captura`, `leer cuestionario`, `detectar cuestionario`, `dom parser`, `parser dom`
+- alias: `content script`, `content scripts`, `extractor`, `captura`, `leer cuestionario`, `detectar cuestionario`, `dom parser`, `parser dom`, `modo escucha`, `subrayar`, `seleccionar texto`
 - relevo principal: `doc/logs/relevos/frontend/content_script.md`
 - logs esperados: `doc/logs/frontend/content_script.md`
 - nota: debe limitarse a adaptación de página, extracción controlada e inyección mínima.
@@ -38,6 +39,12 @@ Después debe leer:
 - alias: `popup`, `ventana`, `panel rápido`, `ui principal`, `botón extensión`
 - relevo principal: `doc/logs/relevos/frontend/popup.md`
 - logs esperados: `doc/logs/frontend/popup.md`
+
+### atajos
+- alias: `atajos`, `shortcut`, `shortcuts`, `f8`, `tecla`, `tecla programable`, `hotkey`, `modo escucha`
+- relevo principal: `doc/logs/relevos/frontend/atajos.md`
+- logs esperados: `doc/logs/frontend/atajos.md`
+- nota: incluye la pestaña Atajos, el Modo escucha, la tecla programable y la sincronización con content script/background.
 
 ### conexiones
 - alias: `conexión`, `conexion`, `conexiones`, `coneccion`, `conecciones`, `proveedor`, `api key`, `clave ia`, `endpoint`, `options`, `opciones`, `settings`
@@ -77,6 +84,7 @@ Después debe leer:
 - “sigue con permisos” → relevo `doc/logs/relevos/compartidos/manifest_permisos.md` + log `doc/logs/backend_modulos/manifest_permisos.md`
 - “sigue con eventos” → relevo `doc/logs/relevos/compartidos/eventos.md` + log `doc/logs/backend_modulos/eventos.md`
 - “sigue con conexiones” → relevo `doc/logs/relevos/frontend/conexiones.md` + log `doc/logs/frontend/conexiones.md`
+- “sigue con atajos” → relevo `doc/logs/relevos/frontend/atajos.md` + log `doc/logs/frontend/atajos.md`
 
 ## Regla para dominios nuevos
 Si aparece un módulo, superficie o dominio nuevo que el usuario pueda invocar por nombre natural, el agente debe añadir aquí su alias y sus rutas documentales mínimas.
