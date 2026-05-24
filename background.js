@@ -1,5 +1,6 @@
-// Configurar el panel lateral para que se abra al hacer clic en el icono de la extensión
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+// El icono de la extensión controla el Modo escucha.
+// El sidepanel queda para configuración, historial y explicación detallada.
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
   .catch((error) => console.error("Error al configurar el comportamiento del panel lateral:", error));
 
 const DEFAULT_SHORTCUTS = {
@@ -50,7 +51,7 @@ async function getAppConfig() {
   return { ...DEFAULT_CONFIG, ...(saved.config || {}) };
 }
 
-function createActionIcon(isListening, size) {
+function createActionIcon(isListening, size, answerLabel = "") {
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, size, size);
@@ -61,16 +62,31 @@ function createActionIcon(isListening, size) {
     ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#ef4444";
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size * 0.16, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
     ctx.lineWidth = Math.max(1, size * 0.06);
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size * 0.34, 0, Math.PI * 2);
     ctx.stroke();
+
+    const cleanAnswer = String(answerLabel || "").trim().slice(0, 2).toUpperCase();
+
+    if (cleanAnswer) {
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `900 ${Math.floor(size * 0.58)}px system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(cleanAnswer, size / 2, size / 2 + 1);
+
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      ctx.arc(size * 0.78, size * 0.24, size * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else {
     ctx.fillStyle = "#4b5563";
     ctx.fillRect(0, 0, size, size);
@@ -84,23 +100,30 @@ function createActionIcon(isListening, size) {
   return ctx.getImageData(0, 0, size, size);
 }
 
-async function updateActionIcon(isListening) {
+async function updateActionIcon(isListening, answerLabel = "") {
+  const cleanAnswer = String(answerLabel || "").trim().slice(0, 2).toUpperCase();
+
   try {
     await chrome.action.setIcon({
       imageData: {
-        16: createActionIcon(isListening, 16),
-        32: createActionIcon(isListening, 32)
+        16: createActionIcon(isListening, 16, cleanAnswer),
+        32: createActionIcon(isListening, 32, cleanAnswer)
       }
     });
+    await chrome.action.setBadgeText({ text: "" });
   } catch (error) {
-    await chrome.action.setBadgeText({ text: isListening ? "●" : "" });
+    await chrome.action.setBadgeText({ text: isListening ? (cleanAnswer || "●") : "" });
     if (isListening) {
       await chrome.action.setBadgeBackgroundColor({ color: "#10b981" });
     }
   }
 
   await chrome.action.setTitle({
-    title: isListening ? "Canvas Study — Modo escucha activo" : "Canvas Study"
+    title: isListening
+      ? cleanAnswer
+        ? `Canvas Study — Respuesta sugerida: ${cleanAnswer}`
+        : "Canvas Study — Modo escucha activo"
+      : "Canvas Study"
   });
 }
 
@@ -339,14 +362,20 @@ async function handleListenSelection(message) {
   const questionData = normalizeQuestionData(message);
   const result = await analyzeQuestionData(questionData);
   const answerLetter = indexToLetter(result.recommendedOptionIndex);
+  const answerLabel = answerLetter || String(result.recommendedAnswer || "").trim().slice(0, 2).toUpperCase();
+
   await saveAnalysisToHistory(questionData, result);
   await chrome.storage.session.set({ pendingAnalysis: { type: "analysis_result", questionData, result, timestamp: Date.now(), source: "listen_mode" } });
-  return { success: true, questionData, result, overlay: { answerLabel: answerLetter || result.recommendedAnswer, confidence: result.confidence } };
+  await updateActionIcon(true, answerLabel);
+
+  return { success: true, questionData, result, iconAnswer: answerLabel };
 }
 
 async function toggleListenMode() {
   const current = await getShortcutsConfig();
-  const shortcuts = await saveShortcutsConfig({ listenModeEnabled: !current.listenModeEnabled });
+  const nextEnabled = !current.listenModeEnabled;
+  const shortcuts = await saveShortcutsConfig({ listenModeEnabled: nextEnabled });
+  await updateActionIcon(nextEnabled);
   await notifyActiveTabShortcutsChanged(shortcuts);
   return shortcuts;
 }
@@ -354,12 +383,17 @@ async function toggleListenMode() {
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({ id: "solve-selection", title: "Analizar con Gemini", contexts: ["selection"] });
+  chrome.contextMenus.create({ id: "open-sidepanel", title: "Abrir panel de explicación", contexts: ["action"] });
   await resetListenModeOnBoot();
-  console.log("Menú contextual registrado y Modo escucha iniciado apagado.");
+  console.log("Menús registrados y Modo escucha iniciado apagado.");
 });
 
 chrome.runtime.onStartup.addListener(() => {
   resetListenModeOnBoot().catch((error) => console.error("Error al apagar Modo escucha en startup:", error));
+});
+
+chrome.action.onClicked.addListener(async () => {
+  await toggleListenMode();
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
@@ -377,6 +411,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     } catch (error) {
       console.error("Error al manejar la selección del menú contextual:", error);
     }
+    return;
+  }
+
+  if (info.menuItemId === "open-sidepanel" && tab?.windowId !== undefined) {
+    await chrome.sidePanel.open({ windowId: tab.windowId });
   }
 });
 
