@@ -22,14 +22,6 @@
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
   },
-  "commands": {
-    "toggle-listen-mode": {
-      "suggested_key": {
-        "default": "F8"
-      },
-      "description": "Activar o desactivar el Modo escucha"
-    }
-  },
   "content_scripts": [
     {
       "matches": [
