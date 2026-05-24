@@ -66,8 +66,8 @@ function createActionIcon(isListening, size, letterToShow = "") {
   ctx.fillRect(0, 0, size, size);
 
   if (letterToShow && letterToShow !== "") {
-    // Si hay una respuesta o estado temporal, se dibuja la letra en color #171717
-    ctx.fillStyle = "#171717";
+    // Si hay una respuesta o estado temporal, se dibuja la letra en color #3d3d3d
+    ctx.fillStyle = "#3d3d3d";
     ctx.font = `bold ${Math.floor(size * 0.7)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -76,8 +76,8 @@ function createActionIcon(isListening, size, letterToShow = "") {
   }
 
   if (isListening) {
-    // Modo escucha activo: un punto en el centro de color #171717
-    ctx.fillStyle = "#171717";
+    // Modo escucha activo: un punto en el centro de color #3d3d3d
+    ctx.fillStyle = "#3d3d3d";
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size * 0.22, 0, Math.PI * 2);
     ctx.fill();
