@@ -9,8 +9,8 @@ let lastConsumedListenResultKey = "";
 document.addEventListener("DOMContentLoaded", async () => {
   setupShortcutsPanel();
   await loadShortcutsPanelState();
-  setupPendingListenResultBridge();
-  setTimeout(checkPendingListenResult, 350);
+  setupListenResultInboxBridge();
+  setTimeout(checkListenResultInbox, 250);
 });
 
 function normalizeShortcutKey(value) {
@@ -80,6 +80,11 @@ function setupShortcutsPanel() {
     if (message.type === "SHORTCUTS_UPDATED" && message.shortcuts) {
       shortcutsState = { ...DEFAULT_SHORTCUTS, ...message.shortcuts };
       renderShortcutsPanelState();
+      return;
+    }
+
+    if (message.type === "LISTEN_RESULT_READY" && message.payload) {
+      consumeListenResult(message.payload);
     }
   });
 }
@@ -159,46 +164,38 @@ function showShortcutsToast(message) {
   const toast = document.getElementById("shortcutsToast");
   if (!toast) return;
 
-  if (message) {
-    toast.textContent = message;
-  } else {
-    toast.textContent = "Atajo guardado con éxito.";
-  }
-
+  toast.textContent = message || "Atajo guardado con éxito.";
   toast.classList.remove("hidden");
   setTimeout(() => toast.classList.add("hidden"), 3000);
 }
 
-function setupPendingListenResultBridge() {
+function setupListenResultInboxBridge() {
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === "session" && changes.pendingAnalysis?.newValue) {
-      consumePendingListenResult(changes.pendingAnalysis.newValue);
+    if (areaName === "local" && changes.listenResultInbox?.newValue) {
+      consumeListenResult(changes.listenResultInbox.newValue);
     }
   });
 
-  setInterval(checkPendingListenResult, 1200);
+  setInterval(checkListenResultInbox, 1200);
 }
 
-async function checkPendingListenResult() {
+async function checkListenResultInbox() {
   try {
-    const session = await chrome.storage.session.get("pendingAnalysis");
-    if (session.pendingAnalysis) {
-      await consumePendingListenResult(session.pendingAnalysis);
+    const local = await chrome.storage.local.get("listenResultInbox");
+    if (local.listenResultInbox) {
+      await consumeListenResult(local.listenResultInbox);
     }
   } catch (error) {
-    console.error("Error al leer resultado pendiente de Modo escucha:", error);
+    console.error("Error al leer listenResultInbox:", error);
   }
 }
 
-async function consumePendingListenResult(pendingAnalysis) {
-  if (!pendingAnalysis) return;
+async function consumeListenResult(payload) {
+  if (!payload || payload.type !== "listen_quick_result") return;
 
-  const validTypes = new Set(["listen_quick_result", "analysis_result"]);
-  if (!validTypes.has(pendingAnalysis.type)) return;
-
-  const questionData = normalizePendingQuestion(pendingAnalysis.questionData);
-  const result = normalizePendingResult(pendingAnalysis.result);
-  const key = `${pendingAnalysis.timestamp || ""}-${questionData.id || ""}-${result.answerLetter || result.recommendedAnswer || ""}`;
+  const questionData = normalizePendingQuestion(payload.questionData);
+  const result = normalizePendingResult(payload.result);
+  const key = `${payload.timestamp || ""}-${questionData.id || ""}-${result.answerLetter || result.recommendedAnswer || ""}`;
 
   if (key && key === lastConsumedListenResultKey) return;
   lastConsumedListenResultKey = key;
@@ -206,9 +203,9 @@ async function consumePendingListenResult(pendingAnalysis) {
   renderListenResultInPanel(questionData, result);
 
   try {
-    await chrome.storage.session.remove("pendingAnalysis");
+    await chrome.storage.local.remove("listenResultInbox");
   } catch (error) {
-    console.warn("No se pudo limpiar pendingAnalysis:", error.message);
+    console.warn("No se pudo limpiar listenResultInbox:", error.message);
   }
 }
 
@@ -230,7 +227,7 @@ function normalizePendingResult(result) {
   return {
     answerLetter,
     recommendedAnswer: answerLetter ? `Opción ${answerLetter}` : (safeResult.recommendedAnswer || "Respuesta rápida recibida"),
-    explanation: safeResult.explanation || "Resultado recibido desde Modo escucha. Para una explicación más completa, vuelve a analizar la pregunta desde el panel.",
+    explanation: safeResult.explanation || "Resultado recibido desde Modo escucha. Se guarda en la bandeja interna listenResultInbox para que el panel lo consuma al abrirse.",
     confidence: safeResult.confidence ?? "rápida",
     keyConcepts: Array.isArray(safeResult.keyConcepts) ? safeResult.keyConcepts : [],
     recommendedOptionIndex: Number.isInteger(safeResult.recommendedOptionIndex) ? safeResult.recommendedOptionIndex : optionIndex
@@ -316,9 +313,7 @@ function renderListenAnswer(questionData, result) {
   const targetIndex = result.recommendedOptionIndex;
   if (targetIndex >= 0) {
     const targetOption = document.getElementById(`listen-opt-item-${targetIndex}`) || document.getElementById(`opt-item-${targetIndex}`);
-    if (targetOption) {
-      targetOption.classList.add("recommended");
-    }
+    if (targetOption) targetOption.classList.add("recommended");
   }
 }
 
