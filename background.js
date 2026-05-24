@@ -128,19 +128,10 @@ async function updateActionIcon(isListening, badgeText = "") {
 async function ensureContentScriptInActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.id || !tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://")) {
-      return;
-    }
+    if (!tab || !tab.id || !tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://")) return;
 
-    await chrome.scripting.insertCSS({
-      target: { tabId: tab.id, allFrames: true },
-      files: ["content/content.css"]
-    }).catch(() => {});
-
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      files: ["content/content.js"]
-    }).catch(() => {});
+    await chrome.scripting.insertCSS({ target: { tabId: tab.id, allFrames: true }, files: ["content/content.css"] }).catch(() => {});
+    await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content/content.js"] }).catch(() => {});
   } catch (error) {
     console.warn("No se pudo asegurar content script en la pestaña activa:", error.message);
   }
@@ -151,24 +142,13 @@ async function setPendingAnalysisFromSelection(selectedText, tab, source) {
   if (!cleanText || !tab) return;
 
   await chrome.storage.session.set({
-    pendingAnalysis: {
-      text: cleanText,
-      timestamp: Date.now(),
-      type: "free_text",
-      source: source || "selection"
-    }
+    pendingAnalysis: { text: cleanText, timestamp: Date.now(), type: "free_text", source: source || "selection" }
   });
 
-  if (tab.windowId !== undefined) {
-    await chrome.sidePanel.open({ windowId: tab.windowId });
-  }
+  if (tab.windowId !== undefined) await chrome.sidePanel.open({ windowId: tab.windowId });
 
   try {
-    await chrome.runtime.sendMessage({
-      type: "ANALYZE_TEXT",
-      text: cleanText,
-      source: source || "selection"
-    });
+    await chrome.runtime.sendMessage({ type: "ANALYZE_TEXT", text: cleanText, source: source || "selection" });
   } catch (err) {
     console.log("El panel lateral aún no está escuchando. Datos guardados en almacenamiento de sesión.");
   }
@@ -179,9 +159,7 @@ async function notifyActiveTabShortcutsChanged(shortcuts) {
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab && tab.id) {
-      await chrome.tabs.sendMessage(tab.id, { type: "SHORTCUTS_UPDATED", shortcuts });
-    }
+    if (tab && tab.id) await chrome.tabs.sendMessage(tab.id, { type: "SHORTCUTS_UPDATED", shortcuts });
   } catch (error) {
     // Algunas páginas no aceptan content scripts; no es un error bloqueante.
   }
@@ -209,9 +187,45 @@ function indexToLetter(index) {
   return Number.isInteger(index) && index >= 0 ? alphabet[index] || String(index) : "";
 }
 
+function normalizeTextForMatch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/^[a-d][).:\-\s]+/i, "")
+    .replace(/[^a-z0-9ñ\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function extractLetterFromAnswer(answer) {
   const match = String(answer || "").match(/\b([A-D])\b/i);
   return match ? match[1].toUpperCase() : "";
+}
+
+function findOptionLetterFromAnswer(questionData, result) {
+  const directLetter = indexToLetter(result?.recommendedOptionIndex);
+  if (directLetter) return directLetter;
+
+  const explicitLetter = extractLetterFromAnswer(result?.recommendedAnswer);
+  if (explicitLetter) return explicitLetter;
+
+  const answerText = normalizeTextForMatch(result?.recommendedAnswer);
+  if (!answerText || !Array.isArray(questionData.options)) return "";
+
+  const exactIndex = questionData.options.findIndex((option) => {
+    const optionText = normalizeTextForMatch(option.text);
+    return optionText && optionText === answerText;
+  });
+  if (exactIndex >= 0) return indexToLetter(exactIndex);
+
+  const partialIndex = questionData.options.findIndex((option) => {
+    const optionText = normalizeTextForMatch(option.text);
+    return optionText && (optionText.includes(answerText) || answerText.includes(optionText));
+  });
+  if (partialIndex >= 0) return indexToLetter(partialIndex);
+
+  return "";
 }
 
 function buildPrompt(questionData, config) {
@@ -367,8 +381,7 @@ async function handleListenSelection(message) {
   try {
     const questionData = normalizeQuestionData(message);
     const result = await analyzeQuestionData(questionData);
-    const answerLetter = indexToLetter(result.recommendedOptionIndex) || extractLetterFromAnswer(result.recommendedAnswer);
-    const answerLabel = answerLetter || String(result.recommendedAnswer || "OK").trim().slice(0, 2).toUpperCase();
+    const answerLabel = findOptionLetterFromAnswer(questionData, result) || "?";
 
     await saveAnalysisToHistory(questionData, result);
     await chrome.storage.session.set({ pendingAnalysis: { type: "analysis_result", questionData, result, timestamp: Date.now(), source: "listen_mode" } });
