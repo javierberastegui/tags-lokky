@@ -483,22 +483,25 @@ async function saveListenResultToHistory(questionData, result) {
 }
 
 async function handleListenSelection(message) {
-  // 1. Normalizar una sola vez al principio para evitar conflicto de IDs
+  // 1. Extrae y limpia la pregunta y la primera palabra
   const questionData = normalizeQuestionData(message);
   const firstWord = (questionData?.text || "").trim().split(/\s+/)[0] || "...";
   
+  // 2. Muestra la primera palabra y se queda ahí exactamente 1 segundo
   await updateActionIcon(true, firstWord);
-  await new Promise(resolve => setTimeout(resolve, 400));
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
+  // 3. Pasa a "Pensando con ..." y se mantiene así de forma síncrona hasta terminar
   await updateActionIcon(true, "...");
 
   try {
-    // 2. Usar la misma questionData ya normalizada
     const answerLetter = await resolveAnswerLetter(questionData);
     const payload = buildListenResultPayload(questionData, answerLetter);
 
     await saveListenResultToHistory(questionData, payload.result);
     await publishListenResult(payload);
+    
+    // 4. Responde con la letra (dura 1 segundo y vuelve al punto por sí sola)
     await updateActionIcon(true, answerLetter);
 
     return { success: true, questionData, iconAnswer: answerLetter, payload };
