@@ -483,6 +483,11 @@ async function saveListenResultToHistory(questionData, result) {
 }
 
 async function handleListenSelection(message) {
+  const firstWord = (message?.data?.text || message?.text || "").trim().split(/\s+/)[0] || "...";
+  await updateActionIcon(true, firstWord);
+  await new Promise(resolve => setTimeout(resolve, 400));
+
+  
   await updateActionIcon(true, "...");
 
   try {
