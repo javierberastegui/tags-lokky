@@ -483,19 +483,17 @@ async function saveListenResultToHistory(questionData, result) {
 }
 
 async function handleListenSelection(message) {
-  // 1. Normalizar primero para asegurar el texto limpio de la pregunta
+  // 1. Normalizar una sola vez al principio para evitar conflicto de IDs
   const questionData = normalizeQuestionData(message);
   const firstWord = (questionData?.text || "").trim().split(/\s+/)[0] || "...";
   
-  // 2. Mostrar la primera palabra
   await updateActionIcon(true, firstWord);
   await new Promise(resolve => setTimeout(resolve, 400));
 
-  // 3. Mostrar los tres puntos de pensando
   await updateActionIcon(true, "...");
 
   try {
-    // 4. Resolver y mostrar la letra (se mantiene intacto)
+    // 2. Usar la misma questionData ya normalizada
     const answerLetter = await resolveAnswerLetter(questionData);
     const payload = buildListenResultPayload(questionData, answerLetter);
 
