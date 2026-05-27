@@ -119,13 +119,7 @@ async function updateActionIcon(isListening, letterToShow = "", titleSuffix = ""
   await setActionBadge("");
 
   await chrome.action.setTitle({
-    title: isListening
-      ? titleSuffix
-        ? titleSuffix
-        : cleanLetter
-          ? `Canvas Study — Respuesta sugerida: ${cleanLetter}`
-          : "Canvas Study — Modo escucha activo"
-      : "Canvas Study"
+    title: "Canvas Study"
   });
 
   // Cuando hay una respuesta (y se está escuchando), se muestra la letra durante 1 segundo,
