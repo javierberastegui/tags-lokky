@@ -481,15 +481,46 @@ async function saveListenResultToHistory(questionData, result) {
   }
 }
 
+let thinkingInterval = null;
+
+function startThinkingAnimation() {
+  stopThinkingAnimation();
+  let frame = 0;
+  const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  
+  thinkingInterval = setInterval(async () => {
+    frame = (frame + 1) % spinnerFrames.length;
+    const currentFrame = spinnerFrames[frame];
+    try {
+      await chrome.action.setIcon({
+        imageData: {
+          16: createActionIcon(true, 16, currentFrame),
+          32: createActionIcon(true, 32, currentFrame)
+        }
+      });
+    } catch (e) {
+      // ignore
+    }
+  }, 100);
+}
+
+function stopThinkingAnimation() {
+  if (thinkingInterval) {
+    clearInterval(thinkingInterval);
+    thinkingInterval = null;
+  }
+}
+
 async function handleListenSelection(message) {
   // 1. Extrae y limpia la pregunta y la primera palabra
   const questionData = normalizeQuestionData(message);
   const firstWord = (questionData?.text || "").trim().split(/\s+/)[0] || "...";
   
-  // 2. Muestra la primera palabra leída, espera 600ms y cambia a pensando "..."
+  // 2. Muestra la primera palabra leída, espera 600ms e inicia animación de pensando
   await updateActionIcon(true, firstWord);
   await new Promise(resolve => setTimeout(resolve, 600));
-  await updateActionIcon(true, "...");
+  
+  startThinkingAnimation();
 
   try {
     const answerLetter = await resolveAnswerLetter(questionData);
@@ -497,6 +528,8 @@ async function handleListenSelection(message) {
 
     await saveListenResultToHistory(questionData, payload.result);
     await publishListenResult(payload);
+    
+    stopThinkingAnimation();
     
     // 3. Responde con la letra A/B/C/D (dura 1 segundo y vuelve al punto por sí sola mediante updateActionIcon)
     let titleDetails = "";
@@ -511,6 +544,7 @@ async function handleListenSelection(message) {
 
     return { success: true, questionData, iconAnswer: answerLetter, payload };
   } catch (error) {
+    stopThinkingAnimation();
     const safeError = `[${new Date().toLocaleTimeString()}] Error en Modo escucha: ${error.message}`;
     await chrome.storage.local.set({ lastError: safeError });
     await updateActionIcon(true, "!", error.message.slice(0, 80));
