@@ -486,13 +486,8 @@ async function handleListenSelection(message) {
   const questionData = normalizeQuestionData(message);
   const firstWord = (questionData?.text || "").trim().split(/\s+/)[0] || "...";
   
-  // 2. Muestra la primera palabra leída
+  // 2. Muestra la primera palabra leída y cambia de inmediato a pensando "..."
   await updateActionIcon(true, firstWord);
-  
-  // PAUSA 1: Mantiene la palabra en pantalla exactamente 1 segundo antes de pasar a procesar
-  await new Promise(resolve => setTimeout(resolve, 2000));
-
-  // 3. Pasa a "Pensando con ..." (tres puntos) mientras se realiza la petición HTTP a la IA
   await updateActionIcon(true, "...");
 
   try {
@@ -502,10 +497,7 @@ async function handleListenSelection(message) {
     await saveListenResultToHistory(questionData, payload.result);
     await publishListenResult(payload);
     
-    // PAUSA 2: Mantiene los tres puntos en pantalla exactamente 1 segundo tras recibir la respuesta, evitando que parpadee rápido
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // 4. Responde con la letra A/B/C/D (dura 1 segundo y vuelve al punto por sí sola mediante updateActionIcon)
+    // 3. Responde con la letra A/B/C/D (dura 1 segundo y vuelve al punto por sí sola mediante updateActionIcon)
     let titleDetails = "";
     if (questionData.text) {
       const optionIndex = "ABCD".indexOf(answerLetter);
