@@ -38,5 +38,7 @@ Registrar decisiones sobre lectura de página activa, extracción de preguntas/o
 - Decisiones tomadas:
   - Cambiar el background a `transparent` y usar un color de texto/borde basado en el tema índigo de la aplicación.
   - Diseñar estados de hover/active/success/error acordes al estilo transparente de forma sutil.
+  - Oscurecer los tonos del texto e iconos (de `#818cf8` a `#4338ca` / `#3730a3`) y bordes para asegurar una legibilidad y contraste óptimos sobre el fondo claro de Canvas.
 - Validaciones ejecutadas: Modificación CSS y restauración previa del fondo del sidepanel.
+
 
