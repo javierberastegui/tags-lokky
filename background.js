@@ -486,8 +486,9 @@ async function handleListenSelection(message) {
   const questionData = normalizeQuestionData(message);
   const firstWord = (questionData?.text || "").trim().split(/\s+/)[0] || "...";
   
-  // 2. Muestra la primera palabra leída y cambia de inmediato a pensando "..."
+  // 2. Muestra la primera palabra leída, espera 600ms y cambia a pensando "..."
   await updateActionIcon(true, firstWord);
+  await new Promise(resolve => setTimeout(resolve, 600));
   await updateActionIcon(true, "...");
 
   try {
