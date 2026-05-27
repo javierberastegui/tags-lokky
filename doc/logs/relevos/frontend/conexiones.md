@@ -9,6 +9,7 @@ Este dominio reemplaza el uso visible de `options`, `opciones` o `ajustes` cuand
 - Renombrado conceptual de `options/ajustes` a `conexiones`.
 - Creado log nuevo en `doc/logs/frontend/conexiones.md`.
 - Pendiente de retirar los archivos antiguos `options.md` tras actualizar referencias.
+- Corregida la conexión del gateway de Hermes local en config.yaml, cambiando el proveedor/modelo de openai-codex/gpt-5.5 a openrouter/z-ai/glm-4.5-air:free y reiniciando el servicio de gateway para restablecer la API.
 
 ## No hecho / pendiente
 - Falta pantalla real de Conexiones.

@@ -34,3 +34,10 @@ Registrar decisiones sobre la pantalla de Conexión/Conexiones: proveedor IA, cr
 - Validaciones ejecutadas: validación documental.
 - Incidencias detectadas: ninguna.
 - Siguiente paso: cuando exista UI real, nombrar el botón/pantalla como `Conexión` o `Conexiones`, no como `Ajustes`.
+
+### 2026-05-27 — Corrección de error de conexión en Gateway Hermes
+- Contexto: Al probar la conexión en modo gateway con el proveedor Hermes, este respondía con un error de respuesta vacía: `{"ok":true,"response":""}`.
+- Causa: El agente local Hermes estaba configurado para usar el proveedor `openai-codex` con el modelo `gpt-5.5`, el cual fallaba internamente con una excepción `TypeError: 'NoneType' object is not iterable` debido a que las credenciales de Codex no estaban activas o habían expirado.
+- Solución: Se modificó la configuración local de Hermes (`~/.hermes/config.yaml`) para usar el proveedor `openrouter` con el modelo `z-ai/glm-4.5-air:free` (que cuenta con conectividad activa y clave configurada en el sistema). Se reinició el servicio `hermes-gateway`.
+- Validaciones ejecutadas: Petición curl directa al endpoint `/api/companion/chat` con el prompt estructurado de Tags Lokky, respondiendo exitosamente con la estructura JSON esperada.
+- Siguiente paso: Comprobar la conexión desde el panel de la extensión.

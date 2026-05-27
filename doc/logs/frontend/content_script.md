@@ -30,3 +30,13 @@ Registrar decisiones sobre lectura de página activa, extracción de preguntas/o
 - Validaciones ejecutadas: documental.
 - Incidencias detectadas: falta implementación técnica.
 - Siguiente paso: crear extractor no invasivo con control manual del usuario.
+
+### 2026-05-27 — Estilo transparente y discreto del botón inyectado
+- Contexto: El usuario solicitó hacer el botón inyectado en la página ("Estudiar con Gemini") más discreto y transparente.
+- Objetivo: Reemplazar el fondo de gradiente sólido por un diseño minimalista con bordes y fondo transparente, mejorando la integración visual en Canvas.
+- Archivos tocados: `content/content.css`.
+- Decisiones tomadas:
+  - Cambiar el background a `transparent` y usar un color de texto/borde basado en el tema índigo de la aplicación.
+  - Diseñar estados de hover/active/success/error acordes al estilo transparente de forma sutil.
+- Validaciones ejecutadas: Modificación CSS y restauración previa del fondo del sidepanel.
+

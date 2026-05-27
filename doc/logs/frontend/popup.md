@@ -15,3 +15,11 @@ Registrar decisiones sobre la UI principal de la extensión: popup, acciones rá
 - Validaciones ejecutadas: documental.
 - Incidencias detectadas: falta implementación técnica.
 - Siguiente paso: crear popup mínimo conectado a background mediante mensajes.
+
+### 2026-05-27 — Fondo transparente de la aplicación
+- Contexto: El usuario solicitó que el fondo de la aplicación sea totalmente transparente.
+- Objetivo: Hacer transparente el fondo principal de la interfaz del panel lateral (sidepanel).
+- Archivos tocados: `sidepanel/sidepanel.css`.
+- Decisiones tomadas: Se modificó la regla `body` en `sidepanel.css` para establecer `background-color: transparent` en lugar de la variable oscura `var(--bg-primary)`.
+- Validaciones ejecutadas: Modificación CSS.
+

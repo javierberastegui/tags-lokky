@@ -10,6 +10,9 @@ Estado actual:
 - reglas de uso autorizado y privacidad definidas
 - logs/relevos por dominio como sistema principal de continuidad
 - pantalla visible de conexiones nombrada como `Conexión` o `Conexiones`, no como `Ajustes`
+- botón inyectado "Estudiar con Gemini" en Canvas modificado a estilo transparente y discreto
+- corregido el error de conexión del gateway Hermes reconfigurando su proveedor a OpenRouter y modelo activo a z-ai/glm-4.5-air:free
+
 
 ## Dirección funcional
 La extensión debe ayudar a:
