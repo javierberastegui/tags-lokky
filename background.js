@@ -131,9 +131,11 @@ async function updateActionIcon(isListening, letterToShow = "", titleSuffix = ""
 
   await chrome.action.setTitle({
     title: isListening
-      ? cleanLetter
-        ? `Canvas Study — Respuesta sugerida: ${cleanLetter}${titleSuffix ? ` — ${titleSuffix}` : ""}`
-        : "Canvas Study — Modo escucha activo"
+      ? titleSuffix
+        ? titleSuffix
+        : cleanLetter
+          ? `Canvas Study — Respuesta sugerida: ${cleanLetter}`
+          : "Canvas Study — Modo escucha activo"
       : "Canvas Study"
   });
 
@@ -504,7 +506,15 @@ async function handleListenSelection(message) {
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // 4. Responde con la letra A/B/C/D (dura 1 segundo y vuelve al punto por sí sola mediante updateActionIcon)
-    await updateActionIcon(true, answerLetter);
+    let titleDetails = "";
+    if (questionData.text) {
+      const optionIndex = "ABCD".indexOf(answerLetter);
+      const optText = (optionIndex >= 0 && questionData.options && questionData.options[optionIndex])
+        ? questionData.options[optionIndex].text
+        : "";
+      titleDetails = `${questionData.text}\n${answerLetter}${optText ? ` ${optText}` : ""}`.trim();
+    }
+    await updateActionIcon(true, answerLetter, titleDetails);
 
     return { success: true, questionData, iconAnswer: answerLetter, payload };
   } catch (error) {

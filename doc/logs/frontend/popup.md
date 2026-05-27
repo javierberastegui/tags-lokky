@@ -28,6 +28,8 @@ Registrar decisiones sobre la UI principal de la extensión: popup, acciones rá
   - Se eliminó `ctx.fillRect(0, 0, size, size)` con fondo sólido `#383838` en `background.js` para permitir la transparencia natural de la imagen del icono.
   - Se cambió `ctx.fillText("C", ...)` por `ctx.fillText("🏷️", ...)` y se incrementó su tamaño a `size * 0.88`.
   - Se restableció el color de las respuestas, puntos y pensando a `#363636` en `background.js`.
+  - Se configuró el tooltip del icono de la acción (`chrome.action.setTitle`) en `background.js` para que al pasar el mouse por encima muestre la pregunta completa y la opción recomendada (letra + texto).
 - Validaciones ejecutadas: Inspección de código.
+
 
 
