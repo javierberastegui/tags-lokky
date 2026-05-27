@@ -35,9 +35,12 @@ Registrar decisiones sobre la pantalla de Conexión/Conexiones: proveedor IA, cr
 - Incidencias detectadas: ninguna.
 - Siguiente paso: cuando exista UI real, nombrar el botón/pantalla como `Conexión` o `Conexiones`, no como `Ajustes`.
 
-### 2026-05-27 — Corrección de error de conexión en Gateway Hermes
-- Contexto: Al probar la conexión en modo gateway con el proveedor Hermes, este respondía con un error de respuesta vacía: `{"ok":true,"response":""}`.
-- Causa: El agente local Hermes estaba configurado para usar el proveedor `openai-codex` con el modelo `gpt-5.5`, el cual fallaba internamente con una excepción `TypeError: 'NoneType' object is not iterable` debido a que las credenciales de Codex no estaban activas o habían expirado.
-- Solución: Se modificó la configuración local de Hermes (`~/.hermes/config.yaml`) para usar el proveedor `openrouter` con el modelo `z-ai/glm-4.5-air:free` (que cuenta con conectividad activa y clave configurada en el sistema). Se reinició el servicio `hermes-gateway`.
-- Validaciones ejecutadas: Petición curl directa al endpoint `/api/companion/chat` con el prompt estructurado de Tags Lokky, respondiendo exitosamente con la estructura JSON esperada.
-- Siguiente paso: Comprobar la conexión desde el panel de la extensión.
+### 2026-05-27 — Integración de sesión de Telegram con base del Companion
+- Contexto: El usuario solicitó poder preguntar por Telegram sobre la última pregunta resuelta en el navegador (en el Companion), para que el bot de Hermes responda preguntas del test.
+- Objetivo: Interceptar consultas de Telegram relacionadas a la "última pregunta" y devolver los datos de la sesión `"companion"` guardados en la base SQLite central.
+- Archivos tocados: `/home/lokky/.hermes/hermes-agent/gateway/platforms/telegram.py` y `doc/logs/frontend/conexiones.md`.
+- Decisiones tomadas:
+  - Modificar `_handle_text_message` en el adaptador de Telegram para interceptar búsquedas de "ultima pregunta" o "última pregunta".
+  - Consultar `SessionDB` para cargar el historial de la sesión `"companion"` (browser), extraer la última pregunta del usuario y la respuesta de la IA, y responder directamente en el chat de Telegram.
+- Validaciones ejecutadas: Reinicio del servicio systemd `hermes-gateway` para cargar el cambio.
+
