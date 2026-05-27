@@ -63,21 +63,10 @@ function createActionIcon(isListening, size, letterToShow = "") {
 
   // Background is transparent. (No solid fill)
 
-  if (letterToShow === "...") {
-    // Tres puntos de pensando horizontales
-    ctx.fillStyle = "#363636";
-    const space = size * 0.22;
-    const radius = size * 0.075;
-    ctx.beginPath();
-    ctx.arc(size / 2 - space, size / 2, radius, 0, Math.PI * 2);
-    ctx.arc(size / 2, size / 2, radius, 0, Math.PI * 2);
-    ctx.arc(size / 2 + space, size / 2, radius, 0, Math.PI * 2);
-    ctx.fill();
-    return ctx.getImageData(0, 0, size, size);
-  }
+  const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-  if (letterToShow && letterToShow !== "") {
-    // Letra de respuesta sugerida
+  if (letterToShow && spinnerFrames.includes(letterToShow)) {
+    // Muestra el frame de animación de pensando
     ctx.fillStyle = "#363636";
     ctx.font = `bold ${Math.floor(size * 0.7)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
