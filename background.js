@@ -61,13 +61,11 @@ function createActionIcon(isListening, size, letterToShow = "") {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, size, size);
 
-  // El envoltorio siempre es de color #383838
-  ctx.fillStyle = "#383838";
-  ctx.fillRect(0, 0, size, size);
+  // Background is transparent. (No solid fill)
 
   if (letterToShow === "...") {
-    // Tres puntos de pensando horizontales de color #302f2f
-    ctx.fillStyle = "#302f2f";
+    // Tres puntos de pensando horizontales
+    ctx.fillStyle = "#818cf8";
     const space = size * 0.22;
     const radius = size * 0.075;
     ctx.beginPath();
@@ -79,30 +77,29 @@ function createActionIcon(isListening, size, letterToShow = "") {
   }
 
   if (letterToShow && letterToShow !== "") {
-    // Si hay una respuesta o estado temporal, se dibuja la letra en color #302f2f
-    ctx.fillStyle = "#302f2f";
+    // Letra de respuesta sugerida
+    ctx.fillStyle = "#a855f7";
     ctx.font = `bold ${Math.floor(size * 0.7)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(letterToShow, size / 2, size / 2 + 1);
+    ctx.fillText(letterToShow, size / 2, size / 2);
     return ctx.getImageData(0, 0, size, size);
   }
 
   if (isListening) {
-    // Modo escucha activo: un punto en el centro de color #302f2f
-    ctx.fillStyle = "#302f2f";
+    // Modo escucha activo: punto verde
+    ctx.fillStyle = "#10b981";
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size * 0.22, 0, Math.PI * 2);
     ctx.fill();
     return ctx.getImageData(0, 0, size, size);
   }
 
-  // Modo escucha inactivo: icono de la aplicación (letra C tenue en gris claro)
-  ctx.fillStyle = "#a1a1aa";
-  ctx.font = `bold ${Math.floor(size * 0.6)}px system-ui, sans-serif`;
+  // Modo escucha inactivo: emoji de etiqueta
+  ctx.font = `${Math.floor(size * 0.72)}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("C", size / 2, size / 2 + 1);
+  ctx.fillText("🏷️", size / 2, size / 2);
   return ctx.getImageData(0, 0, size, size);
 }
 

@@ -16,10 +16,16 @@ Registrar decisiones sobre la UI principal de la extensión: popup, acciones rá
 - Incidencias detectadas: falta implementación técnica.
 - Siguiente paso: crear popup mínimo conectado a background mediante mensajes.
 
-### 2026-05-27 — Fondo transparente de la aplicación
-- Contexto: El usuario solicitó que el fondo de la aplicación sea totalmente transparente.
-- Objetivo: Hacer transparente el fondo principal de la interfaz del panel lateral (sidepanel).
-- Archivos tocados: `sidepanel/sidepanel.css`.
-- Decisiones tomadas: Se modificó la regla `body` en `sidepanel.css` para establecer `background-color: transparent` en lugar de la variable oscura `var(--bg-primary)`.
-- Validaciones ejecutadas: Modificación CSS.
+### 2026-05-27 — Ajuste de fondo transparente e icono de la extensión
+- Contexto: El usuario aclaró que quería transparentar el fondo del icono de la acción en la barra de herramientas, no del panel lateral, y reemplazar la letra "C" de apagado por un emoji de etiqueta (🏷️).
+- Objetivo:
+  1. Revertir el fondo transparente del sidepanel (restablecer fondo oscuro).
+  2. Modificar la generación del icono dinámico de la extensión para usar fondo transparente.
+  3. Reemplazar la letra "C" del icono inactivo por el emoji "🏷️".
+- Archivos tocados: `sidepanel/sidepanel.css`, `background.js`.
+- Decisiones tomadas:
+  - Se restauró `background-color: var(--bg-primary)` en `sidepanel.css`.
+  - Se eliminó `ctx.fillRect(0, 0, size, size)` con fondo sólido `#383838` en `background.js` para permitir la transparencia natural de la imagen del icono.
+  - Se cambió `ctx.fillText("C", ...)` por `ctx.fillText("🏷️", ...)` y se adaptaron los colores del punto de escucha (verde) y de letras (púrpura) para destacar en toolbars oscuros/claros.
+- Validaciones ejecutadas: Inspección de código.
 
