@@ -65,7 +65,7 @@ function createActionIcon(isListening, size, letterToShow = "") {
 
   if (letterToShow === "...") {
     // Tres puntos de pensando horizontales
-    ctx.fillStyle = "#818cf8";
+    ctx.fillStyle = "#363636";
     const space = size * 0.22;
     const radius = size * 0.075;
     ctx.beginPath();
@@ -78,7 +78,7 @@ function createActionIcon(isListening, size, letterToShow = "") {
 
   if (letterToShow && letterToShow !== "") {
     // Letra de respuesta sugerida
-    ctx.fillStyle = "#a855f7";
+    ctx.fillStyle = "#363636";
     ctx.font = `bold ${Math.floor(size * 0.7)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -87,8 +87,8 @@ function createActionIcon(isListening, size, letterToShow = "") {
   }
 
   if (isListening) {
-    // Modo escucha activo: punto verde
-    ctx.fillStyle = "#10b981";
+    // Modo escucha activo: punto
+    ctx.fillStyle = "#363636";
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size * 0.22, 0, Math.PI * 2);
     ctx.fill();
@@ -96,7 +96,7 @@ function createActionIcon(isListening, size, letterToShow = "") {
   }
 
   // Modo escucha inactivo: emoji de etiqueta
-  ctx.font = `${Math.floor(size * 0.72)}px system-ui, sans-serif`;
+  ctx.font = `${Math.floor(size * 0.88)}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("🏷️", size / 2, size / 2);

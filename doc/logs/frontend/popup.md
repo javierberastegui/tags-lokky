@@ -26,6 +26,8 @@ Registrar decisiones sobre la UI principal de la extensión: popup, acciones rá
 - Decisiones tomadas:
   - Se restauró `background-color: var(--bg-primary)` en `sidepanel.css`.
   - Se eliminó `ctx.fillRect(0, 0, size, size)` con fondo sólido `#383838` en `background.js` para permitir la transparencia natural de la imagen del icono.
-  - Se cambió `ctx.fillText("C", ...)` por `ctx.fillText("🏷️", ...)` y se adaptaron los colores del punto de escucha (verde) y de letras (púrpura) para destacar en toolbars oscuros/claros.
+  - Se cambió `ctx.fillText("C", ...)` por `ctx.fillText("🏷️", ...)` y se incrementó su tamaño a `size * 0.88`.
+  - Se restableció el color de las respuestas, puntos y pensando a `#363636` en `background.js`.
 - Validaciones ejecutadas: Inspección de código.
+
 
